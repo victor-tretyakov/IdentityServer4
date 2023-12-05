@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using static Bullseye.Targets;
 using static SimpleExec.Command;
 
@@ -24,16 +25,16 @@ namespace build
             public const string CopyPackOutput = "copy-pack-output";
         }
 
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
             Target(Targets.CleanBuildOutput, () =>
             {
-                //Run("dotnet", "clean -c Release -v m --nologo", echoPrefix: Prefix);
+                //RunAsync("dotnet", "clean -c Release -v m --nologo", echoPrefix: Prefix);
             });
 
             Target(Targets.Build, DependsOn(Targets.CleanBuildOutput), () =>
             {
-                Run("dotnet", "build -c Release --nologo", echoPrefix: Prefix);
+                RunAsync("dotnet", "build -c Release --nologo", echoPrefix: Prefix);
             });
 
             Target(Targets.SignBinary, DependsOn(Targets.Build), () =>
@@ -58,7 +59,7 @@ namespace build
             {
                 var project = Directory.GetFiles("./src", "*.csproj", SearchOption.TopDirectoryOnly).OrderBy(_ => _).First();
 
-                Run("dotnet", $"pack {project} -c Release -o \"{Directory.CreateDirectory(packOutput).FullName}\" --no-build --nologo", echoPrefix: Prefix);
+                RunAsync("dotnet", $"pack {project} -c Release -o \"{Directory.CreateDirectory(packOutput).FullName}\" --no-build --nologo", echoPrefix: Prefix);
             });
 
             Target(Targets.SignPackage, DependsOn(Targets.Pack), () =>
@@ -82,7 +83,7 @@ namespace build
 
             Target("sign", DependsOn(Targets.SignBinary, Targets.Test, Targets.SignPackage, Targets.CopyPackOutput));
 
-            RunTargetsAndExit(args, ex => ex is SimpleExec.NonZeroExitCodeException || ex.Message.EndsWith(envVarMissing), Prefix);
+            await RunTargetsAndExitAsync(args, ex => ex is SimpleExec.ExitCodeException || ex.Message.EndsWith(envVarMissing));
         }
 
         private static void Sign(string path, string searchTerm)
@@ -97,7 +98,7 @@ namespace build
             foreach (var file in Directory.GetFiles(path, searchTerm, SearchOption.AllDirectories))
             {
                 Console.WriteLine($"  Signing {file}");
-                Run("dotnet", $"SignClient sign -c ../../signClient.json -i {file} -r sc-ids@dotnetfoundation.org -s \"{signClientSecret}\" -n 'IdentityServer4'", noEcho: true);
+                RunAsync("dotnet", $"SignClient sign -c ../../signClient.json -i {file} -r sc-ids@dotnetfoundation.org -s \"{signClientSecret}\" -n 'IdentityServer4'", noEcho: true);
             }
         }
     }
