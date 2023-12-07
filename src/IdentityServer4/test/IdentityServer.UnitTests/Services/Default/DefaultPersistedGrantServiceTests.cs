@@ -725,7 +725,7 @@ namespace IdentityServer.UnitTests.Services.Default
             grants.Count().Should().Be(1);
             grants.First().Scopes.Should().Contain(new string[] { "foo1", "foo2" });
 
-            var handle9 = await _codes.StoreAuthorizationCodeAsync(new AuthorizationCode()
+            await _codes.StoreAuthorizationCodeAsync(new AuthorizationCode()
             {
                 ClientId = "client1",
                 CreationTime = DateTime.UtcNow,

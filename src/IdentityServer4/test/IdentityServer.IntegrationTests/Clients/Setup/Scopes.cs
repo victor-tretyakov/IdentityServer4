@@ -3,6 +3,7 @@
 
 
 using System.Collections.Generic;
+using IdentityServer4.Extensions;
 using IdentityServer4.Models;
 
 namespace IdentityServer.IntegrationTests.Clients.Setup

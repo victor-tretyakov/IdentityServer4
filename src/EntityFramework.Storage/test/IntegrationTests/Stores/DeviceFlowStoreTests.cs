@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using IdentityServer4.EntityFramework.DbContexts;
 using IdentityServer4.EntityFramework.Options;
 using IdentityServer4.EntityFramework.Stores;
@@ -83,7 +83,7 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
                 foundDeviceFlowCodes.Should().NotBeNull();
                 var deserializedData = new PersistentGrantSerializer().Deserialize<DeviceCode>(foundDeviceFlowCodes?.Data);
 
-                deserializedData.CreationTime.Should().BeCloseTo(data.CreationTime);
+                deserializedData.CreationTime.Should().BeCloseTo(data.CreationTime, TimeSpan.FromMicroseconds(1));
                 deserializedData.ClientId.Should().Be(data.ClientId);
                 deserializedData.Lifetime.Should().Be(data.Lifetime);
             }
@@ -92,7 +92,7 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
         [Theory, MemberData(nameof(TestDatabaseProviders))]
         public async Task StoreDeviceAuthorizationAsync_WhenUserCodeAlreadyExists_ExpectException(DbContextOptions<PersistedGrantDbContext> options)
         {
-            var existingUserCode = $"user_{Guid.NewGuid().ToString()}";
+            var existingUserCode = $"user_{Guid.NewGuid()}";
             var deviceCodeData = new DeviceCode
             {
                 ClientId = "device_flow",
@@ -101,14 +101,14 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
                 Lifetime = 300,
                 IsOpenId = true,
                 Subject = new ClaimsPrincipal(new ClaimsIdentity(
-                    new List<Claim> { new Claim(JwtClaimTypes.Subject, $"sub_{Guid.NewGuid().ToString()}") }))
+                    new List<Claim> { new Claim(JwtClaimTypes.Subject, $"sub_{Guid.NewGuid()}") }))
             };
 
             using (var context = new PersistedGrantDbContext(options, StoreOptions))
             {
                 context.DeviceFlowCodes.Add(new DeviceFlowCodes
                 {
-                    DeviceCode = $"device_{Guid.NewGuid().ToString()}",
+                    DeviceCode = $"device_{Guid.NewGuid()}",
                     UserCode = existingUserCode,
                     ClientId = deviceCodeData.ClientId,
                     SubjectId = deviceCodeData.Subject.FindFirst(JwtClaimTypes.Subject).Value,
@@ -127,7 +127,7 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
                 if (options.Extensions.All(x => x.GetType() != typeof(InMemoryOptionsExtension)))
                 {
                     await Assert.ThrowsAsync<DbUpdateException>(() =>
-                        store.StoreDeviceAuthorizationAsync($"device_{Guid.NewGuid().ToString()}", existingUserCode, deviceCodeData));
+                        store.StoreDeviceAuthorizationAsync($"device_{Guid.NewGuid()}", existingUserCode, deviceCodeData));
                 }
             }
         }
@@ -135,7 +135,7 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
         [Theory, MemberData(nameof(TestDatabaseProviders))]
         public async Task StoreDeviceAuthorizationAsync_WhenDeviceCodeAlreadyExists_ExpectException(DbContextOptions<PersistedGrantDbContext> options)
         {
-            var existingDeviceCode = $"device_{Guid.NewGuid().ToString()}";
+            var existingDeviceCode = $"device_{Guid.NewGuid()}";
             var deviceCodeData = new DeviceCode
             {
                 ClientId = "device_flow",
@@ -144,7 +144,7 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
                 Lifetime = 300,
                 IsOpenId = true,
                 Subject = new ClaimsPrincipal(new ClaimsIdentity(
-                    new List<Claim> { new Claim(JwtClaimTypes.Subject, $"sub_{Guid.NewGuid().ToString()}") }))
+                    new List<Claim> { new Claim(JwtClaimTypes.Subject, $"sub_{Guid.NewGuid()}") }))
             };
 
             using (var context = new PersistedGrantDbContext(options, StoreOptions))
@@ -152,7 +152,7 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
                 context.DeviceFlowCodes.Add(new DeviceFlowCodes
                 {
                     DeviceCode = existingDeviceCode,
-                    UserCode = $"user_{Guid.NewGuid().ToString()}",
+                    UserCode = $"user_{Guid.NewGuid()}",
                     ClientId = deviceCodeData.ClientId,
                     SubjectId = deviceCodeData.Subject.FindFirst(JwtClaimTypes.Subject).Value,
                     CreationTime = deviceCodeData.CreationTime,
@@ -170,7 +170,7 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
                 if (options.Extensions.All(x => x.GetType() != typeof(InMemoryOptionsExtension)))
                 {
                     await Assert.ThrowsAsync<DbUpdateException>(() =>
-                        store.StoreDeviceAuthorizationAsync(existingDeviceCode, $"user_{Guid.NewGuid().ToString()}", deviceCodeData));
+                        store.StoreDeviceAuthorizationAsync(existingDeviceCode, $"user_{Guid.NewGuid()}", deviceCodeData));
                 }
             }
         }
@@ -178,10 +178,10 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
         [Theory, MemberData(nameof(TestDatabaseProviders))]
         public async Task FindByUserCodeAsync_WhenUserCodeExists_ExpectDataRetrievedCorrectly(DbContextOptions<PersistedGrantDbContext> options)
         {
-            var testDeviceCode = $"device_{Guid.NewGuid().ToString()}";
-            var testUserCode = $"user_{Guid.NewGuid().ToString()}";
+            var testDeviceCode = $"device_{Guid.NewGuid()}";
+            var testUserCode = $"user_{Guid.NewGuid()}";
 
-            var expectedSubject = $"sub_{Guid.NewGuid().ToString()}";
+            var expectedSubject = $"sub_{Guid.NewGuid()}";
             var expectedDeviceCodeData = new DeviceCode
             {
                 ClientId = "device_flow",
@@ -226,7 +226,7 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
             using (var context = new PersistedGrantDbContext(options, StoreOptions))
             {
                 var store = new DeviceFlowStore(context, new PersistentGrantSerializer(), FakeLogger<DeviceFlowStore>.Create());
-                var code = await store.FindByUserCodeAsync($"user_{Guid.NewGuid().ToString()}");
+                var code = await store.FindByUserCodeAsync($"user_{Guid.NewGuid()}");
                 code.Should().BeNull();
             }
         }
@@ -234,10 +234,10 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
         [Theory, MemberData(nameof(TestDatabaseProviders))]
         public async Task FindByDeviceCodeAsync_WhenDeviceCodeExists_ExpectDataRetrievedCorrectly(DbContextOptions<PersistedGrantDbContext> options)
         {
-            var testDeviceCode = $"device_{Guid.NewGuid().ToString()}";
-            var testUserCode = $"user_{Guid.NewGuid().ToString()}";
+            var testDeviceCode = $"device_{Guid.NewGuid()}";
+            var testUserCode = $"user_{Guid.NewGuid()}";
 
-            var expectedSubject = $"sub_{Guid.NewGuid().ToString()}";
+            var expectedSubject = $"sub_{Guid.NewGuid()}";
             var expectedDeviceCodeData = new DeviceCode
             {
                 ClientId = "device_flow",
@@ -282,7 +282,7 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
             using (var context = new PersistedGrantDbContext(options, StoreOptions))
             {
                 var store = new DeviceFlowStore(context, new PersistentGrantSerializer(), FakeLogger<DeviceFlowStore>.Create());
-                var code = await store.FindByDeviceCodeAsync($"device_{Guid.NewGuid().ToString()}");
+                var code = await store.FindByDeviceCodeAsync($"device_{Guid.NewGuid()}");
                 code.Should().BeNull();
             }
         }
@@ -290,10 +290,10 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
         [Theory, MemberData(nameof(TestDatabaseProviders))]
         public async Task UpdateByUserCodeAsync_WhenDeviceCodeAuthorized_ExpectSubjectAndDataUpdated(DbContextOptions<PersistedGrantDbContext> options)
         {
-            var testDeviceCode = $"device_{Guid.NewGuid().ToString()}";
-            var testUserCode = $"user_{Guid.NewGuid().ToString()}";
+            var testDeviceCode = $"device_{Guid.NewGuid()}";
+            var testUserCode = $"user_{Guid.NewGuid()}";
 
-            var expectedSubject = $"sub_{Guid.NewGuid().ToString()}";
+            var expectedSubject = $"sub_{Guid.NewGuid()}";
             var unauthorizedDeviceCode = new DeviceCode
             {
                 ClientId = "device_flow",
@@ -356,8 +356,8 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
         [Theory, MemberData(nameof(TestDatabaseProviders))]
         public async Task RemoveByDeviceCodeAsync_WhenDeviceCodeExists_ExpectDeviceCodeDeleted(DbContextOptions<PersistedGrantDbContext> options)
         {
-            var testDeviceCode = $"device_{Guid.NewGuid().ToString()}";
-            var testUserCode = $"user_{Guid.NewGuid().ToString()}";
+            var testDeviceCode = $"device_{Guid.NewGuid()}";
+            var testUserCode = $"user_{Guid.NewGuid()}";
 
             var existingDeviceCode = new DeviceCode
             {
@@ -399,7 +399,7 @@ namespace IdentityServer4.EntityFramework.IntegrationTests.Stores
             using (var context = new PersistedGrantDbContext(options, StoreOptions))
             {
                 var store = new DeviceFlowStore(context, new PersistentGrantSerializer(), FakeLogger<DeviceFlowStore>.Create());
-                await store.RemoveByDeviceCodeAsync($"device_{Guid.NewGuid().ToString()}");
+                await store.RemoveByDeviceCodeAsync($"device_{Guid.NewGuid()}");
             }
         }
     }

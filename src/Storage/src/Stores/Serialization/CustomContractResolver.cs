@@ -8,15 +8,14 @@ using System.Text.Json.Serialization.Metadata;
 
 #pragma warning disable 1591
 
-namespace IdentityServer4.Stores.Serialization
-{
-    public class CustomContractResolver: DefaultJsonTypeInfoResolver
-    {
-        public override JsonTypeInfo GetTypeInfo(Type type, JsonSerializerOptions options)
-        {
-            var jsonTypeInfo = base.GetTypeInfo(type, options);
+namespace IdentityServer4.Stores.Serialization;
 
-            return jsonTypeInfo;
-        }
+public class CustomContractResolver: DefaultJsonTypeInfoResolver
+{
+    public override JsonTypeInfo GetTypeInfo(Type type, JsonSerializerOptions options)
+    {
+        var jsonTypeInfo = base.GetTypeInfo(type, options);
+
+        return jsonTypeInfo;
     }
 }

@@ -326,9 +326,9 @@ namespace IdentityServer.UnitTests.Stores.Default
                 Type = "type",
                 Claims = new List<Claim>
                 {
-                    new Claim("sub", "123"),
-                    new Claim("scope", "bar1"),
-                    new Claim("scope", "bar2")
+                    new("sub", "123"),
+                    new("scope", "bar1"),
+                    new("scope", "bar2")
                 }
             });
 
@@ -344,9 +344,9 @@ namespace IdentityServer.UnitTests.Stores.Default
                     Type = "type",
                     Claims = new List<Claim>
                     {
-                        new Claim("sub", "123"),
-                        new Claim("scope", "baz1"),
-                        new Claim("scope", "baz2")
+                        new("sub", "123"),
+                        new("scope", "baz1"),
+                        new("scope", "baz2")
                     }
                 },
                 Version = 1
@@ -364,9 +364,13 @@ namespace IdentityServer.UnitTests.Stores.Default
                 RequestedScopes = new string[] { "quux1", "quux2" }
             });
 
-            (await _codes.GetAuthorizationCodeAsync("key")).Lifetime.Should().Be(30);
-            (await _refreshTokens.GetRefreshTokenAsync("key")).Lifetime.Should().Be(20);
-            (await _referenceTokens.GetReferenceTokenAsync("key")).Lifetime.Should().Be(10);
+            var authorizationCode = await _codes.GetAuthorizationCodeAsync("key");
+            var refreshToken = await _refreshTokens.GetRefreshTokenAsync("key");
+            var token = await _referenceTokens.GetReferenceTokenAsync("key");
+
+            authorizationCode.Lifetime.Should().Be(30);
+            refreshToken.Lifetime.Should().Be(20);
+            token.Lifetime.Should().Be(10);
         }
     }
 }

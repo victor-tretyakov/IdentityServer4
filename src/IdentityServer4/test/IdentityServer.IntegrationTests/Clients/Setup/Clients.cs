@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
 using IdentityServer.IntegrationTests.Common;
 using IdentityServer4;
+using IdentityServer4.Extensions;
 using IdentityServer4.Models;
 
 namespace IdentityServer.IntegrationTests.Clients.Setup

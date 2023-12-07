@@ -11,18 +11,23 @@
   <ItemGroup>
     <!--build related-->
     <PackageReference Include="MinVer" Version="4.3.0" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
     <PackageReference Update="SimpleExec" Version="11.0.0" />
     <PackageReference Update="Bullseye" Version="4.2.1" />
-    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
 
     <!--tests -->
     <PackageReference Update="FluentAssertions" Version="6.12.0" />
+    <PackageReference Update="FluentAssertions.Web" Version="1.2.5"/>
     <PackageReference Update="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Update="xunit" Version="2.6.2" />
     <PackageReference Update="xunit.runner.visualstudio" Version="2.5.4" PrivateAssets="All" />
 
     <!--our stuff -->
     <PackageReference Update="IdentityModel" Version="6.2.0" />
+    <PackageReference Update="Serilog" Version="3.1.1" />
+    <PackageReference Update="Serilog.AspNetCore" Version="8.0.0" />
+    <PackageReference Update="Serilog.Sinks.Console" Version="5.0.1" />
+    <PackageReference Update="Serilog.Sinks.File" Version="5.0.0" />
 
     <PackageReference Update="IdentityServer4" Version="$(IdentityServerVersion)" />
     <PackageReference Update="IdentityServer4.AspNetIdentity" Version="$(IdentityServerVersion)" />
@@ -37,23 +42,23 @@
     <PackageReference Update="Microsoft.Extensions.Logging" Version="$(ExtensionsVersion)" />
     <PackageReference Update="Microsoft.Extensions.Logging.Console" Version="$(ExtensionsVersion)" />
     <PackageReference Update="Microsoft.Extensions.Options.ConfigurationExtensions" Version="$(ExtensionsVersion)" />
-    
+
     <!--misc -->
     <PackageReference Update="System.Text.Json" Version="8.0.0" />
-    <PackageReference Update="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Update="Microsoft.IdentityModel.JsonWebTokens" Version="[7.0.3,)"/>
     <PackageReference Update="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="7.0.3" />
     <PackageReference Update="System.IdentityModel.Tokens.Jwt" Version="[7.0.3,)" />
-    <PackageReference Update="System.Security.Principal.Windows" Version="5.0.0" />
-    <PackageReference Update="AutoMapper" Version="[12.0.1,)" />
-    
+
     <!--microsoft asp.net core -->
     <PackageReference Update="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="$(FrameworkVersion)" />
+    <PackageReference Update="Microsoft.AspNetCore.DataProtection.Abstractions" Version="$(FrameworkVersion)" />
     <PackageReference Update="Microsoft.AspNetCore.TestHost" Version="$(FrameworkVersion)" />
     <PackageReference Update="Microsoft.AspNetCore.Identity" Version="$(FrameworkVersion)" />
     <PackageReference Update="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="$(FrameworkVersion)" />
     <PackageReference Update="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="$(FrameworkVersion)" />
     <PackageReference Update="Microsoft.AspNetCore.Authentication.Certificate" Version="$(FrameworkVersion)"/>
-    
+    <PackageReference Update="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="$(FrameworkVersion)"/>
+
     <!--microsoft entity framework -->
     <PackageReference Update="Microsoft.EntityFrameworkCore.Relational" Version="$(EntityFrameworkVersion)" />
     <PackageReference Update="Microsoft.EntityFrameworkCore.Sqlite" Version="$(EntityFrameworkVersion)" />

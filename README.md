@@ -18,7 +18,7 @@ Active development happens on the main branch. This always contains the latest v
 
 ## How to build
 
-* [Install](https://www.microsoft.com/net/download/core#/current) the latest .NET Core 3.1 SDK
+* [Install](https://dotnet.microsoft.com/en-us/download/dotnet) the latest .NET 7.0 SDK
 * Install Git
 * Clone this repo
 * Run `build.ps1` or `build.sh` in the root of the cloned repo
@@ -58,7 +58,6 @@ IdentityServer4 is built using the following great open source projects and free
 * [Bullseye](https://github.com/adamralph/bullseye)
 * [SimpleExec](https://github.com/adamralph/simple-exec)
 * [MinVer](https://github.com/adamralph/minver)
-* [Json.Net](http://www.newtonsoft.com/json)
 * [XUnit](https://xunit.github.io/)
 * [Fluent Assertions](http://www.fluentassertions.com/)
 * [GitReleaseManager](https://github.com/GitTools/GitReleaseManager)

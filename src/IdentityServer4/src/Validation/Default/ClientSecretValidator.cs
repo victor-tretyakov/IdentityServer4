@@ -8,7 +8,7 @@ using IdentityServer4.Events;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
 using IdentityServer4.Stores;
-using IdentityServer4.Models;
+using IdentityServer4.Extensions;
 
 namespace IdentityServer4.Validation
 {
