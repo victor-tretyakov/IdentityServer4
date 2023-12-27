@@ -4,10 +4,11 @@ using IdentityServer.IntegrationTests.Common;
 using IdentityServer4.Models;
 using IdentityServer4.Services;
 using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Generic;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
-using System.Text.Json.Nodes;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -73,10 +74,9 @@ public class CustomProfileServiceTests
 
         var payload = authorization.IdentityToken.Split('.')[1];
         var json = Encoding.UTF8.GetString(Base64Url.Decode(payload));
-        var obj = JsonNode.Parse(json);
+        var obj = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
 
-        obj["foo"].GetValue<string>().Should().NotBeNull();
-        obj["foo"].ToString().Should().Be("bar");
+        obj["foo"].GetString().Should().Be("bar");
     }
 }
 
@@ -86,11 +86,9 @@ public class CustomProfileService : IProfileService
     {
         var claims = new Claim[]
         {
-            new("foo", "bar")
+            new Claim("foo", "bar")
         };
-
         context.AddRequestedClaims(claims);
-
         return Task.CompletedTask;
     }
 

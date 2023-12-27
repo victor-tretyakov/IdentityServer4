@@ -15,14 +15,14 @@ internal static class NameValueCollectionExtensions
 {
     public static IDictionary<string, string[]> ToFullDictionary(this NameValueCollection source)
     {
-        return source.AllKeys.ToDictionary(k => k, source.GetValues);
+        return source.AllKeys.ToDictionary(k => k, k => source.GetValues(k));
     }
 
     public static NameValueCollection FromFullDictionary(this IDictionary<string, string[]> source)
     {
         var nvc = new NameValueCollection();
 
-        foreach ((var key, var strings) in source)
+        foreach ((string key, string[] strings) in source)
         {
             foreach (var value in strings)
             {
@@ -32,12 +32,12 @@ internal static class NameValueCollectionExtensions
 
         return nvc;
     }
-    
+
     public static string ToQueryString(this NameValueCollection collection)
     {
         if (collection.Count == 0)
         {
-            return string.Empty;
+            return String.Empty;
         }
 
         var builder = new StringBuilder(128);
@@ -47,7 +47,7 @@ internal static class NameValueCollectionExtensions
             var values = collection.GetValues(name);
             if (values == null || values.Length == 0)
             {
-                first = AppendNameValuePair(builder, first, true, name, string.Empty);
+                first = AppendNameValuePair(builder, first, true, name, String.Empty);
             }
             else
             {
@@ -130,7 +130,7 @@ internal static class NameValueCollectionExtensions
 
     internal static string ConvertFormUrlEncodedSpacesToUrlEncodedSpaces(string str)
     {
-        if ((str != null) && (str.Contains('+')))
+        if ((str != null) && (str.IndexOf('+') >= 0))
         {
             str = str.Replace("+", "%20");
         }
@@ -139,10 +139,10 @@ internal static class NameValueCollectionExtensions
 
     private static bool AppendNameValuePair(StringBuilder builder, bool first, bool urlEncode, string name, string value)
     {
-        var effectiveName = name ?? string.Empty;
+        var effectiveName = name ?? String.Empty;
         var encodedName = urlEncode ? UrlEncoder.Default.Encode(effectiveName) : effectiveName;
 
-        var effectiveValue = value ?? string.Empty;
+        var effectiveValue = value ?? String.Empty;
         var encodedValue = urlEncode ? UrlEncoder.Default.Encode(effectiveValue) : effectiveValue;
         encodedValue = ConvertFormUrlEncodedSpacesToUrlEncodedSpaces(encodedValue);
 
@@ -152,13 +152,13 @@ internal static class NameValueCollectionExtensions
         }
         else
         {
-            builder.Append('&');
+            builder.Append("&");
         }
 
         builder.Append(encodedName);
-        if (!string.IsNullOrEmpty(encodedValue))
+        if (!String.IsNullOrEmpty(encodedValue))
         {
-            builder.Append('=');
+            builder.Append("=");
             builder.Append(encodedValue);
         }
         return first;

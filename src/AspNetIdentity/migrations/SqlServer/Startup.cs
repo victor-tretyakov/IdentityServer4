@@ -1,10 +1,10 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
-using Microsoft.EntityFrameworkCore;
-using IdentityServerHost.Data;
-using Microsoft.AspNetCore.Identity;
 using IdentityServer4.Models;
+using IdentityServerHost.Data;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SqlServer;
 
@@ -19,7 +19,7 @@ public class Startup
 
     public void ConfigureServices(IServiceCollection services)
     {
-        var cn = Configuration.GetConnectionString("db");
+        var cn = Configuration.GetConnectionString("DefaultConnection");
         services.AddDbContext<ApplicationDbContext>(options =>
         {
             options.UseSqlServer(cn, dbOpts => dbOpts.MigrationsAssembly(typeof(Startup).Assembly.FullName));

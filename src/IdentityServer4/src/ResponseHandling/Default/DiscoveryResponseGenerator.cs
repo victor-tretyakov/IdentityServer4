@@ -9,11 +9,13 @@ using IdentityServer4.Services;
 using IdentityServer4.Stores;
 using IdentityServer4.Validation;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using static IdentityServer4.IdentityServerConstants;
 
 namespace IdentityServer4.ResponseHandling;
 
@@ -93,6 +95,8 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
     /// <param name="issuerUri">The issuer URI.</param>
     public virtual async Task<Dictionary<string, object>> CreateDiscoveryDocumentAsync(string baseUrl, string issuerUri)
     {
+        baseUrl = baseUrl.EnsureTrailingSlash();
+
         var entries = new Dictionary<string, object>
         {
             { OidcConstants.Discovery.Issuer, issuerUri }
@@ -103,7 +107,7 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
         {
             if ((await Keys.GetValidationKeysAsync()).Any())
             {
-                entries.Add(OidcConstants.Discovery.JwksUri, baseUrl + Constants.ProtocolRoutePaths.DiscoveryWebKeys);
+                entries.Add(OidcConstants.Discovery.JwksUri, baseUrl + ProtocolRoutePaths.DiscoveryWebKeys);
             }
         }
 
@@ -112,42 +116,55 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
         {
             if (Options.Endpoints.EnableAuthorizeEndpoint)
             {
-                entries.Add(OidcConstants.Discovery.AuthorizationEndpoint, baseUrl + Constants.ProtocolRoutePaths.Authorize);
+                entries.Add(OidcConstants.Discovery.AuthorizationEndpoint, baseUrl + ProtocolRoutePaths.Authorize);
             }
 
             if (Options.Endpoints.EnableTokenEndpoint)
             {
-                entries.Add(OidcConstants.Discovery.TokenEndpoint, baseUrl + Constants.ProtocolRoutePaths.Token);
+                entries.Add(OidcConstants.Discovery.TokenEndpoint, baseUrl + ProtocolRoutePaths.Token);
             }
 
             if (Options.Endpoints.EnableUserInfoEndpoint)
             {
-                entries.Add(OidcConstants.Discovery.UserInfoEndpoint, baseUrl + Constants.ProtocolRoutePaths.UserInfo);
+                entries.Add(OidcConstants.Discovery.UserInfoEndpoint, baseUrl + ProtocolRoutePaths.UserInfo);
             }
 
             if (Options.Endpoints.EnableEndSessionEndpoint)
             {
-                entries.Add(OidcConstants.Discovery.EndSessionEndpoint, baseUrl + Constants.ProtocolRoutePaths.EndSession);
+                entries.Add(OidcConstants.Discovery.EndSessionEndpoint, baseUrl + ProtocolRoutePaths.EndSession);
             }
 
             if (Options.Endpoints.EnableCheckSessionEndpoint)
             {
-                entries.Add(OidcConstants.Discovery.CheckSessionIframe, baseUrl + Constants.ProtocolRoutePaths.CheckSession);
+                entries.Add(OidcConstants.Discovery.CheckSessionIframe, baseUrl + ProtocolRoutePaths.CheckSession);
             }
 
             if (Options.Endpoints.EnableTokenRevocationEndpoint)
             {
-                entries.Add(OidcConstants.Discovery.RevocationEndpoint, baseUrl + Constants.ProtocolRoutePaths.Revocation);
+                entries.Add(OidcConstants.Discovery.RevocationEndpoint, baseUrl + ProtocolRoutePaths.Revocation);
             }
 
             if (Options.Endpoints.EnableIntrospectionEndpoint)
             {
-                entries.Add(OidcConstants.Discovery.IntrospectionEndpoint, baseUrl + Constants.ProtocolRoutePaths.Introspection);
+                entries.Add(OidcConstants.Discovery.IntrospectionEndpoint, baseUrl + ProtocolRoutePaths.Introspection);
             }
 
             if (Options.Endpoints.EnableDeviceAuthorizationEndpoint)
             {
-                entries.Add(OidcConstants.Discovery.DeviceAuthorizationEndpoint, baseUrl + Constants.ProtocolRoutePaths.DeviceAuthorization);
+                entries.Add(OidcConstants.Discovery.DeviceAuthorizationEndpoint, baseUrl + ProtocolRoutePaths.DeviceAuthorization);
+            }
+
+            if (Options.Endpoints.EnableBackchannelAuthenticationEndpoint)
+            {
+                entries.Add(OidcConstants.Discovery.BackchannelAuthenticationEndpoint, baseUrl + ProtocolRoutePaths.BackchannelAuthentication);
+            }
+
+            if (Options.Endpoints.EnablePushedAuthorizationEndpoint)
+            {
+                // TODO - Add these PAR disco values to IdentityModel
+                entries.Add("pushed_authorization_request_endpoint", baseUrl + ProtocolRoutePaths.PushedAuthorization);
+
+                entries.Add("require_pushed_authorization_requests", Options.PushedAuthorization.Required);
             }
 
             if (Options.MutualTls.Enabled)
@@ -156,19 +173,19 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
 
                 if (Options.Endpoints.EnableTokenEndpoint)
                 {
-                    mtlsEndpoints.Add(OidcConstants.Discovery.TokenEndpoint, ConstructMtlsEndpoint(Constants.ProtocolRoutePaths.Token));
+                    mtlsEndpoints.Add(OidcConstants.Discovery.TokenEndpoint, ConstructMtlsEndpoint(ProtocolRoutePaths.Token));
                 }
                 if (Options.Endpoints.EnableTokenRevocationEndpoint)
                 {
-                    mtlsEndpoints.Add(OidcConstants.Discovery.RevocationEndpoint, ConstructMtlsEndpoint(Constants.ProtocolRoutePaths.Revocation));
+                    mtlsEndpoints.Add(OidcConstants.Discovery.RevocationEndpoint, ConstructMtlsEndpoint(ProtocolRoutePaths.Revocation));
                 }
                 if (Options.Endpoints.EnableIntrospectionEndpoint)
                 {
-                    mtlsEndpoints.Add(OidcConstants.Discovery.IntrospectionEndpoint, ConstructMtlsEndpoint(Constants.ProtocolRoutePaths.Introspection));
+                    mtlsEndpoints.Add(OidcConstants.Discovery.IntrospectionEndpoint, ConstructMtlsEndpoint(ProtocolRoutePaths.Introspection));
                 }
                 if (Options.Endpoints.EnableDeviceAuthorizationEndpoint)
                 {
-                    mtlsEndpoints.Add(OidcConstants.Discovery.DeviceAuthorizationEndpoint, ConstructMtlsEndpoint(Constants.ProtocolRoutePaths.DeviceAuthorization));
+                    mtlsEndpoints.Add(OidcConstants.Discovery.DeviceAuthorizationEndpoint, ConstructMtlsEndpoint(ProtocolRoutePaths.DeviceAuthorization));
                 }
 
                 if (mtlsEndpoints.Any())
@@ -181,7 +198,7 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
                     // path based
                     if (Options.MutualTls.DomainName.IsMissing())
                     {
-                        return baseUrl + endpoint.Replace(Constants.ProtocolRoutePaths.ConnectPathPrefix, Constants.ProtocolRoutePaths.MtlsPathPrefix);
+                        return baseUrl + endpoint.Replace(ProtocolRoutePaths.ConnectPathPrefix, ProtocolRoutePaths.MtlsPathPrefix);
                     }
 
                     // domain based
@@ -229,7 +246,7 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
                                 select scope.Name;
 
                 scopes.AddRange(apiScopes);
-                scopes.Add(IdentityServerConstants.StandardScopes.OfflineAccess);
+                scopes.Add(StandardScopes.OfflineAccess);
             }
 
             if (scopes.Any())
@@ -270,6 +287,11 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
             if (Options.Endpoints.EnableDeviceAuthorizationEndpoint)
             {
                 standardGrantTypes.Add(OidcConstants.GrantTypes.DeviceCode);
+            }
+
+            if (Options.Endpoints.EnableBackchannelAuthenticationEndpoint)
+            {
+                standardGrantTypes.Add(OidcConstants.GrantTypes.Ciba);
             }
 
             var showGrantTypes = new List<string>(standardGrantTypes);
@@ -321,19 +343,52 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
         {
             entries.Add(OidcConstants.Discovery.RequestParameterSupported, true);
 
+            entries.Add(OidcConstants.Discovery.RequestObjectSigningAlgorithmsSupported, new[]
+            {
+                SecurityAlgorithms.RsaSha256,
+                SecurityAlgorithms.RsaSha384,
+                SecurityAlgorithms.RsaSha512,
+
+                SecurityAlgorithms.RsaSsaPssSha256,
+                SecurityAlgorithms.RsaSsaPssSha384,
+                SecurityAlgorithms.RsaSsaPssSha512,
+
+                SecurityAlgorithms.EcdsaSha256,
+                SecurityAlgorithms.EcdsaSha384,
+                SecurityAlgorithms.EcdsaSha512,
+
+                SecurityAlgorithms.HmacSha256,
+                SecurityAlgorithms.HmacSha384,
+                SecurityAlgorithms.HmacSha512
+            });
+
             if (Options.Endpoints.EnableJwtRequestUri)
             {
                 entries.Add(OidcConstants.Discovery.RequestUriParameterSupported, true);
             }
+
+            if (Options.UserInteraction.PromptValuesSupported?.Any() == true)
+            {
+                entries.Add(OidcConstants.Discovery.PromptValuesSupported, Options.UserInteraction.PromptValuesSupported.ToArray());
+            }
         }
+
+        entries.Add(OidcConstants.Discovery.AuthorizationResponseIssParameterSupported, Options.EmitIssuerIdentificationResponseParameter);
 
         if (Options.MutualTls.Enabled)
         {
             entries.Add(OidcConstants.Discovery.TlsClientCertificateBoundAccessTokens, true);
         }
 
+        if (Options.Endpoints.EnableBackchannelAuthenticationEndpoint)
+        {
+            entries.Add(OidcConstants.Discovery.BackchannelTokenDeliveryModesSupported,
+                new[] { OidcConstants.BackchannelTokenDeliveryModes.Poll });
+            entries.Add(OidcConstants.Discovery.BackchannelUserCodeParameterSupported, true);
+        }
+
         // custom entries
-        if (!Options.Discovery.CustomEntries.IsNullOrEmpty())
+        if (!IEnumerableExtensions.IsNullOrEmpty(Options.Discovery.CustomEntries))
         {
             foreach ((var key, var value) in Options.Discovery.CustomEntries)
             {
@@ -369,7 +424,7 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
 
         foreach (var key in await Keys.GetValidationKeysAsync())
         {
-            if (key.Key is Microsoft.IdentityModel.Tokens.X509SecurityKey x509Key)
+            if (key.Key is X509SecurityKey x509Key)
             {
                 var cert64 = Convert.ToBase64String(x509Key.Certificate.RawData);
                 var thumbprint = Base64Url.Encode(x509Key.Certificate.GetCertHash());
@@ -418,7 +473,7 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
                     throw new InvalidOperationException($"key type: {x509Key.PublicKey.GetType().Name} not supported.");
                 }
             }
-            else if (key.Key is Microsoft.IdentityModel.Tokens.RsaSecurityKey rsaKey)
+            else if (key.Key is RsaSecurityKey rsaKey)
             {
                 var parameters = rsaKey.Rsa?.ExportParameters(false) ?? rsaKey.Parameters;
                 var exponent = Base64Url.Encode(parameters.Exponent);
@@ -436,7 +491,7 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
 
                 webKeys.Add(webKey);
             }
-            else if (key.Key is Microsoft.IdentityModel.Tokens.ECDsaSecurityKey ecdsaKey)
+            else if (key.Key is ECDsaSecurityKey ecdsaKey)
             {
                 var parameters = ecdsaKey.ECDsa.ExportParameters(false);
                 var x = Base64Url.Encode(parameters.Q.X);
@@ -454,7 +509,7 @@ public class DiscoveryResponseGenerator : IDiscoveryResponseGenerator
                 };
                 webKeys.Add(ecdsaJsonWebKey);
             }
-            else if (key.Key is Microsoft.IdentityModel.Tokens.JsonWebKey jsonWebKey)
+            else if (key.Key is JsonWebKey jsonWebKey)
             {
                 var webKey = new Models.JsonWebKey
                 {

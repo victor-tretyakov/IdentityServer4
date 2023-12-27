@@ -46,7 +46,7 @@ internal class EndSessionCallbackEndpoint : IEndpointHandler
         {
             _logger.LogError("Error validating signout callback: {error}", result.Error);
         }
-        
+
         return new EndSessionCallbackResult(result);
     }
 }

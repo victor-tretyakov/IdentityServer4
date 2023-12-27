@@ -5,6 +5,7 @@
 using IdentityServer4.Extensions;
 using IdentityServer4.Hosting;
 using Microsoft.AspNetCore.Http;
+using System;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -14,7 +15,7 @@ namespace IdentityServer4.Endpoints.Results;
 /// Result for revocation error
 /// </summary>
 /// <seealso cref="IEndpointResult" />
-public class TokenRevocationErrorResult : IEndpointResult
+public class TokenRevocationErrorResult : EndpointResult<TokenRevocationErrorResult>
 {
     /// <summary>
     /// Gets or sets the error.
@@ -22,7 +23,7 @@ public class TokenRevocationErrorResult : IEndpointResult
     /// <value>
     /// The error.
     /// </value>
-    public string Error { get; set; }
+    public string Error { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TokenRevocationErrorResult"/> class.
@@ -30,17 +31,15 @@ public class TokenRevocationErrorResult : IEndpointResult
     /// <param name="error">The error.</param>
     public TokenRevocationErrorResult(string error)
     {
-        Error = error;
+        Error = error ?? throw new ArgumentNullException(nameof(error));
     }
+}
 
-    /// <summary>
-    /// Executes the result.
-    /// </summary>
-    /// <param name="context">The HTTP context.</param>
-    /// <returns></returns>
-    public Task ExecuteAsync(HttpContext context)
+class TokenRevocationErrorHttpWriter : IHttpResponseWriter<TokenRevocationErrorResult>
+{
+    public Task WriteHttpResponse(TokenRevocationErrorResult result, HttpContext context)
     {
-        context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-        return context.Response.WriteJsonAsync(new { error = Error });
+        context.Response.StatusCode = (int) HttpStatusCode.BadRequest;
+        return context.Response.WriteJsonAsync(new { error = result.Error });
     }
 }

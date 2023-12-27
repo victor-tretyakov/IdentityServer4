@@ -6,7 +6,6 @@ using IdentityServer4.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using System;
 using System.Threading.Tasks;
 
 namespace IdentityServer4.Hosting.FederatedSignOut;
@@ -24,7 +23,7 @@ internal class AuthenticationRequestHandlerWrapper : IAuthenticationRequestHandl
         _inner = inner;
         _context = httpContextAccessor.HttpContext;
 
-        var factory = (ILoggerFactory)_context.RequestServices.GetService(typeof(ILoggerFactory));
+        var factory = (ILoggerFactory) _context.RequestServices.GetService(typeof(ILoggerFactory));
         _logger = factory?.CreateLogger(GetType());
     }
 

@@ -23,7 +23,7 @@ public class IsActiveContext
         Subject = subject ?? throw new ArgumentNullException(nameof(subject));
         Client = client ?? throw new ArgumentNullException(nameof(client));
         Caller = caller;
-        
+
         IsActive = true;
     }
 
@@ -52,7 +52,7 @@ public class IsActiveContext
     public string Caller { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the subject is active and can recieve tokens.
+    /// Gets or sets a value indicating whether the subject is active and can receive tokens.
     /// </summary>
     /// <value>
     ///   <c>true</c> if the subject is active; otherwise, <c>false</c>.

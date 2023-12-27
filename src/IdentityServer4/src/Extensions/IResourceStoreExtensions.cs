@@ -3,7 +3,6 @@
 
 
 using IdentityServer4.Models;
-using IdentityServer4.Validation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,7 +27,7 @@ public static class IResourceStoreExtensions
         var apiResources = await store.FindApiResourcesByScopeNameAsync(scopeNames);
         var scopes = await store.FindApiScopesByNameAsync(scopeNames);
 
-        Validate(identity, apiResources, scopes);
+        ValidateNameUniqueness(identity, apiResources, scopes);
 
         var resources = new Resources(identity, apiResources, scopes)
         {
@@ -38,7 +37,7 @@ public static class IResourceStoreExtensions
         return resources;
     }
 
-    private static void Validate(IEnumerable<IdentityResource> identity, IEnumerable<ApiResource> apiResources, IEnumerable<ApiScope> apiScopes)
+    private static void ValidateNameUniqueness(IEnumerable<IdentityResource> identity, IEnumerable<ApiResource> apiResources, IEnumerable<ApiScope> apiScopes)
     {
         // attempt to detect invalid configuration. this is about the only place
         // we can do this, since it's hard to get the values in the store.
@@ -46,7 +45,7 @@ public static class IResourceStoreExtensions
         var dups = GetDuplicates(identityScopeNames);
         if (dups.Any())
         {
-            var names = dups.Aggregate((x, y) => $"{x}, {y}");
+            var names = dups.Aggregate((x, y) => x + ", " + y);
             throw new Exception(
                 $"Duplicate identity scopes found. This is an invalid configuration. Use different names for identity scopes. Scopes found: {names}");
         }
@@ -55,16 +54,16 @@ public static class IResourceStoreExtensions
         dups = GetDuplicates(apiNames);
         if (dups.Any())
         {
-            var names = dups.Aggregate((x, y) => $"{x}, {y}");
+            var names = dups.Aggregate((x, y) => x + ", " + y);
             throw new Exception(
                 $"Duplicate api resources found. This is an invalid configuration. Use different names for API resources. Names found: {names}");
         }
-        
+
         var scopesNames = apiScopes.Select(x => x.Name);
         dups = GetDuplicates(scopesNames);
         if (dups.Any())
         {
-            var names = dups.Aggregate((x, y) => $"{x}, {y}");
+            var names = dups.Aggregate((x, y) => x + ", " + y);
             throw new Exception(
                 $"Duplicate scopes found. This is an invalid configuration. Use different names for scopes. Names found: {names}");
         }
@@ -72,7 +71,7 @@ public static class IResourceStoreExtensions
         var overlap = identityScopeNames.Intersect(scopesNames).ToArray();
         if (overlap.Any())
         {
-            var names = overlap.Aggregate((x, y) => $"{x}, {y}");
+            var names = overlap.Aggregate((x, y) => x + ", " + y);
             throw new Exception(
                 $"Found identity scopes and API scopes that use the same names. This is an invalid configuration. Use different names for identity scopes and API scopes. Scopes found: {names}");
         }
@@ -81,10 +80,10 @@ public static class IResourceStoreExtensions
     private static IEnumerable<string> GetDuplicates(IEnumerable<string> names)
     {
         var duplicates = names
-                        .GroupBy(x => x)
-                        .Where(g => g.Count() > 1)
-                        .Select(y => y.Key)
-                        .ToArray();
+            .GroupBy(x => x)
+            .Where(g => g.Count() > 1)
+            .Select(y => y.Key)
+            .ToArray();
         return duplicates.ToArray();
     }
 
@@ -100,20 +99,6 @@ public static class IResourceStoreExtensions
     }
 
     /// <summary>
-    /// Creates a resource validation result.
-    /// </summary>
-    /// <param name="store">The store.</param>
-    /// <param name="parsedScopesResult">The parsed scopes.</param>
-    /// <returns></returns>
-    public static async Task<ResourceValidationResult> CreateResourceValidationResult(this IResourceStore store, ParsedScopesResult parsedScopesResult)
-    {
-        var validScopeValues = parsedScopesResult.ParsedScopes;
-        var scopes = validScopeValues.Select(x => x.ParsedName).ToArray();
-        var resources = await store.FindEnabledResourcesByScopeAsync(scopes);
-        return new ResourceValidationResult(resources, validScopeValues);
-    }
-
-    /// <summary>
     /// Gets all enabled resources.
     /// </summary>
     /// <param name="store">The store.</param>
@@ -121,7 +106,7 @@ public static class IResourceStoreExtensions
     public static async Task<Resources> GetAllEnabledResourcesAsync(this IResourceStore store)
     {
         var resources = await store.GetAllResourcesAsync();
-        Validate(resources.IdentityResources, resources.ApiResources, resources.ApiScopes);
+        ValidateNameUniqueness(resources.IdentityResources, resources.ApiResources, resources.ApiScopes);
 
         return resources.FilterEnabled();
     }
@@ -135,5 +120,13 @@ public static class IResourceStoreExtensions
     public static async Task<IEnumerable<IdentityResource>> FindEnabledIdentityResourcesByScopeAsync(this IResourceStore store, IEnumerable<string> scopeNames)
     {
         return (await store.FindIdentityResourcesByScopeNameAsync(scopeNames)).Where(x => x.Enabled).ToArray();
+    }
+
+    /// <summary>
+    /// Finds the enabled API resources by name.
+    /// </summary>
+    public static async Task<IEnumerable<ApiResource>> FindEnabledApiResourcesByNameAsync(this IResourceStore store, IEnumerable<string> resourceNames)
+    {
+        return (await store.FindApiResourcesByNameAsync(resourceNames)).Where(x => x.Enabled).ToArray();
     }
 }

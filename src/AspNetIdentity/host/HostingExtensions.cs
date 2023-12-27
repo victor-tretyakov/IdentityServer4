@@ -1,14 +1,12 @@
-// Copyright (c) Duende Software. All rights reserved.
-// See LICENSE in the project root for license information.
+// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
+
 
 using IdentityServer4;
 using IdentityServer4.Models;
 using IdentityServerHost.Data;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using Serilog.Events;
 

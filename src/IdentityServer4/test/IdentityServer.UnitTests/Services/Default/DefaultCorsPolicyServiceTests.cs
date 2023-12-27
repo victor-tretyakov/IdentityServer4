@@ -2,11 +2,11 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System;
-using System.Threading.Tasks;
 using FluentAssertions;
 using IdentityServer.UnitTests.Common;
 using IdentityServer4.Services;
+using System;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace IdentityServer.UnitTests.Services.Default;
@@ -27,7 +27,7 @@ public class DefaultCorsPolicyServiceTests
     public async Task IsOriginAllowed_null_param_ReturnsFalse()
     {
         (await subject.IsOriginAllowedAsync(null)).Should().Be(false);
-        (await subject.IsOriginAllowedAsync(string.Empty)).Should().Be(false);
+        (await subject.IsOriginAllowedAsync(String.Empty)).Should().Be(false);
         (await subject.IsOriginAllowedAsync("    ")).Should().Be(false);
     }
 

@@ -2,161 +2,195 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using IdentityServer4.EntityFramework.Entities;
+using IdentityServer4.EntityFramework.Extensions;
 using IdentityServer4.EntityFramework.Interfaces;
 using IdentityServer4.EntityFramework.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
-namespace IdentityServer4.EntityFramework
+namespace IdentityServer4.EntityFramework;
+
+/// <inheritdoc/>
+public class TokenCleanupService : ITokenCleanupService
 {
+    private readonly OperationalStoreOptions _options;
+    private readonly IPersistedGrantDbContext _persistedGrantDbContext;
+    private readonly IOperationalStoreNotification _operationalStoreNotification;
+    private readonly ILogger<TokenCleanupService> _logger;
+
     /// <summary>
-    /// Helper to cleanup stale persisted grants and device codes.
+    /// Constructor for TokenCleanupService.
     /// </summary>
-    public class TokenCleanupService
+    /// <param name="options"></param>
+    /// <param name="persistedGrantDbContext"></param>
+    /// <param name="operationalStoreNotification"></param>
+    /// <param name="logger"></param>
+    public TokenCleanupService(
+        OperationalStoreOptions options,
+        IPersistedGrantDbContext persistedGrantDbContext,
+        ILogger<TokenCleanupService> logger,
+        IOperationalStoreNotification operationalStoreNotification = null)
     {
-        private readonly OperationalStoreOptions _options;
-        private readonly IPersistedGrantDbContext _persistedGrantDbContext;
-        private readonly IOperationalStoreNotification _operationalStoreNotification;
-        private readonly ILogger<TokenCleanupService> _logger;
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        if (_options.TokenCleanupBatchSize < 1) throw new ArgumentException("Token cleanup batch size interval must be at least 1");
 
-        /// <summary>
-        /// Constructor for TokenCleanupService.
-        /// </summary>
-        /// <param name="options"></param>
-        /// <param name="persistedGrantDbContext"></param>
-        /// <param name="operationalStoreNotification"></param>
-        /// <param name="logger"></param>
-        public TokenCleanupService(
-            OperationalStoreOptions options,
-            IPersistedGrantDbContext persistedGrantDbContext, 
-            ILogger<TokenCleanupService> logger,
-            IOperationalStoreNotification operationalStoreNotification = null)
+        _persistedGrantDbContext = persistedGrantDbContext ?? throw new ArgumentNullException(nameof(persistedGrantDbContext));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        _operationalStoreNotification = operationalStoreNotification;
+    }
+
+    /// <inheritdoc/>
+    public async Task CleanupGrantsAsync(CancellationToken cancellationToken = default)
+    {
+        try
         {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-            if (_options.TokenCleanupBatchSize < 1) throw new ArgumentException("Token cleanup batch size interval must be at least 1");
+            _logger.LogTrace("Querying for expired grants to remove");
 
-            _persistedGrantDbContext = persistedGrantDbContext ?? throw new ArgumentNullException(nameof(persistedGrantDbContext));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-            _operationalStoreNotification = operationalStoreNotification;
+            await RemoveGrantsAsync(cancellationToken);
+            await RemoveDeviceCodesAsync(cancellationToken);
+            await RemovePushedAuthorizationRequestsAsync(cancellationToken);
         }
-
-        /// <summary>
-        /// Method to clear expired persisted grants.
-        /// </summary>
-        /// <returns></returns>
-        public async Task RemoveExpiredGrantsAsync()
+        catch (Exception ex)
         {
-            try
-            {
-                _logger.LogTrace("Querying for expired grants to remove");
-
-                await RemoveGrantsAsync();
-                await RemoveDeviceCodesAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("Exception removing expired grants: {exception}", ex.Message);
-            }
+            _logger.LogError("Exception removing expired grants: {exception}", ex.Message);
         }
+    }
 
-        /// <summary>
-        /// Removes the stale persisted grants.
-        /// </summary>
-        /// <returns></returns>
-        protected virtual async Task RemoveGrantsAsync()
+    /// <summary>
+    /// Removes the stale persisted grants.
+    /// </summary>
+    /// <returns></returns>
+    protected virtual async Task RemoveGrantsAsync(CancellationToken cancellationToken = default)
+    {
+        await RemoveExpiredPersistedGrantsAsync(cancellationToken);
+        if (_options.RemoveConsumedTokens)
         {
-            var found = Int32.MaxValue;
-            
-            while (found >= _options.TokenCleanupBatchSize)
+            await RemoveConsumedPersistedGrantsAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Removes the expired persisted grants.
+    /// </summary>
+    /// <returns></returns>
+    protected virtual async Task RemoveExpiredPersistedGrantsAsync(CancellationToken cancellationToken = default)
+    {
+        var found = int.MaxValue;
+
+        while (found >= _options.TokenCleanupBatchSize)
+        {
+            var expiredGrants = await _persistedGrantDbContext.PersistedGrants
+                .Where(x => x.Expiration < DateTime.UtcNow)
+                .OrderBy(x => x.Expiration)
+                .Take(_options.TokenCleanupBatchSize)
+                .ToArrayAsync(cancellationToken);
+
+            found = expiredGrants.Length;
+
+            if (found > 0)
             {
-                var expiredGrants = await _persistedGrantDbContext.PersistedGrants
-                    .Where(x => x.Expiration < DateTime.UtcNow)
-                    .OrderBy(x => x.Expiration)
-                    .Take(_options.TokenCleanupBatchSize)
-                    .ToArrayAsync();
+                _logger.LogInformation("Removing {grantCount} expired grants", found);
 
-                found = expiredGrants.Length;
-                _logger.LogInformation("Removing {grantCount} grants", found);
+                _persistedGrantDbContext.PersistedGrants.RemoveRange(expiredGrants);
 
-                if (found > 0)
+                var list = await _persistedGrantDbContext.SaveChangesWithConcurrencyCheckAsync<Entities.PersistedGrant>(_logger, cancellationToken);
+                expiredGrants = expiredGrants.Except(list).ToArray();
+
+                if (_operationalStoreNotification != null)
                 {
-                    _persistedGrantDbContext.PersistedGrants.RemoveRange(expiredGrants);
-                    await SaveChangesAsync();
-
-                    if (_operationalStoreNotification != null)
-                    {
-                        await _operationalStoreNotification.PersistedGrantsRemovedAsync(expiredGrants);
-                    }
+                    await _operationalStoreNotification.PersistedGrantsRemovedAsync(expiredGrants, cancellationToken);
                 }
             }
         }
+    }
 
+    /// <summary>
+    /// Removes the consumed persisted grants.
+    /// </summary>
+    /// <returns></returns>
+    protected virtual async Task RemoveConsumedPersistedGrantsAsync(CancellationToken cancellationToken = default)
+    {
+        var found = int.MaxValue;
 
-        /// <summary>
-        /// Removes the stale device codes.
-        /// </summary>
-        /// <returns></returns>
-        protected virtual async Task RemoveDeviceCodesAsync()
+        var delay = TimeSpan.FromSeconds(_options.ConsumedTokenCleanupDelay);
+        var consumedTimeThreshold = DateTime.UtcNow.Subtract(delay);
+
+        while (found >= _options.TokenCleanupBatchSize)
         {
-            var found = Int32.MaxValue;
+            var expiredGrants = await _persistedGrantDbContext.PersistedGrants
+                .Where(x => x.ConsumedTime < consumedTimeThreshold)
+                .OrderBy(x => x.ConsumedTime)
+                .Take(_options.TokenCleanupBatchSize)
+                .ToArrayAsync(cancellationToken);
 
-            while (found >= _options.TokenCleanupBatchSize)
+            found = expiredGrants.Length;
+
+            if (found > 0)
             {
-                var expiredCodes = await _persistedGrantDbContext.DeviceFlowCodes
-                    .Where(x => x.Expiration < DateTime.UtcNow)
-                    .OrderBy(x => x.Expiration)
-                    .Take(_options.TokenCleanupBatchSize)
-                    .ToArrayAsync();
+                _logger.LogInformation("Removing {grantCount} consumed grants", found);
 
-                found = expiredCodes.Length;
+                _persistedGrantDbContext.PersistedGrants.RemoveRange(expiredGrants);
+
+                var list = await _persistedGrantDbContext.SaveChangesWithConcurrencyCheckAsync<Entities.PersistedGrant>(_logger, cancellationToken);
+                expiredGrants = expiredGrants.Except(list).ToArray();
+
+                if (_operationalStoreNotification != null)
+                {
+                    await _operationalStoreNotification.PersistedGrantsRemovedAsync(expiredGrants, cancellationToken);
+                }
+            }
+        }
+    }
+
+
+    /// <summary>
+    /// Removes the stale device codes.
+    /// </summary>
+    /// <returns></returns>
+    protected virtual async Task RemoveDeviceCodesAsync(CancellationToken cancellationToken = default)
+    {
+        var found = int.MaxValue;
+
+        while (found >= _options.TokenCleanupBatchSize)
+        {
+            var expiredCodes = await _persistedGrantDbContext.DeviceFlowCodes
+                .Where(x => x.Expiration < DateTime.UtcNow)
+                .OrderBy(x => x.DeviceCode)
+                .Take(_options.TokenCleanupBatchSize)
+                .ToArrayAsync(cancellationToken);
+
+            found = expiredCodes.Length;
+
+            if (found > 0)
+            {
                 _logger.LogInformation("Removing {deviceCodeCount} device flow codes", found);
 
-                if (found > 0)
-                {
-                    _persistedGrantDbContext.DeviceFlowCodes.RemoveRange(expiredCodes);
-                    await SaveChangesAsync();
+                _persistedGrantDbContext.DeviceFlowCodes.RemoveRange(expiredCodes);
 
-                    if (_operationalStoreNotification != null)
-                    {
-                        await _operationalStoreNotification.DeviceCodesRemovedAsync(expiredCodes);
-                    }
+                var list = await _persistedGrantDbContext.SaveChangesWithConcurrencyCheckAsync<Entities.DeviceFlowCodes>(_logger, cancellationToken);
+                expiredCodes = expiredCodes.Except(list).ToArray();
+
+                if (_operationalStoreNotification != null)
+                {
+                    await _operationalStoreNotification.DeviceCodesRemovedAsync(expiredCodes, cancellationToken);
                 }
             }
         }
+    }
 
-        private async Task SaveChangesAsync()
-        {
-            var count = 3;
-
-            while (count > 0)
-            {
-                try
-                {
-                    await _persistedGrantDbContext.SaveChangesAsync();
-                    return;
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    count--;
-
-                    // we get this if/when someone else already deleted the records
-                    // we want to essentially ignore this, and keep working
-                    _logger.LogDebug("Concurrency exception removing expired grants: {exception}", ex.Message);
-
-                    foreach (var entry in ex.Entries)
-                    {
-                        // mark this entry as not attached anymore so we don't try to re-delete
-                        entry.State = EntityState.Detached;
-                    }
-                }
-            }
-
-            _logger.LogDebug("Too many concurrency exceptions. Exiting.");
-        }
+    /// <summary>
+    /// Removes stale pushed authorization requests.
+    /// </summary>
+    protected virtual async Task RemovePushedAuthorizationRequestsAsync(CancellationToken cancellationToken = default)
+    {
+        var x = await _persistedGrantDbContext.PushedAuthorizationRequests
+            .Where(p => p.ExpiresAtUtc < DateTime.UtcNow)
+            .ExecuteDeleteAsync(cancellationToken);
+        _logger.LogInformation("Removed {parCount} stale pushed authorization requests", x);
     }
 }

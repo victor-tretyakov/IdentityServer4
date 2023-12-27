@@ -39,11 +39,6 @@ public static class AuthenticationManagerExtensions
         await context.SignInAsync(await context.GetCookieAuthenticationSchemeAsync(), user.CreatePrincipal(), properties);
     }
 
-    internal static ISystemClock GetClock(this HttpContext context)
-    {
-        return context.RequestServices.GetRequiredService<ISystemClock>();
-    }
-
     internal static async Task<string> GetCookieAuthenticationSchemeAsync(this HttpContext context)
     {
         var options = context.RequestServices.GetRequiredService<IdentityServerOptions>();

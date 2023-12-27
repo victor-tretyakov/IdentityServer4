@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
+using IdentityServer4.Configuration;
 using IdentityServer4.Extensions;
 using IdentityServer4.Models;
 using IdentityServer4.Stores;
@@ -10,24 +11,31 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Specialized;
 using System.Threading.Tasks;
+using static IdentityServer4.IdentityServerConstants;
 
 namespace IdentityServer4.Services;
 
 internal class OidcReturnUrlParser : IReturnUrlParser
 {
+    private readonly IdentityServerOptions _options;
     private readonly IAuthorizeRequestValidator _validator;
     private readonly IUserSession _userSession;
+    private readonly IServerUrls _urls;
     private readonly ILogger _logger;
     private readonly IAuthorizationParametersMessageStore _authorizationParametersMessageStore;
 
     public OidcReturnUrlParser(
+        IdentityServerOptions options,
         IAuthorizeRequestValidator validator,
         IUserSession userSession,
+        IServerUrls urls,
         ILogger<OidcReturnUrlParser> logger,
         IAuthorizationParametersMessageStore authorizationParametersMessageStore = null)
     {
+        _options = options;
         _validator = validator;
         _userSession = userSession;
+        _urls = urls;
         _logger = logger;
         _authorizationParametersMessageStore = authorizationParametersMessageStore;
     }
@@ -59,16 +67,34 @@ internal class OidcReturnUrlParser : IReturnUrlParser
 
     public bool IsValidReturnUrl(string returnUrl)
     {
+        if (_options.UserInteraction.AllowOriginInReturnUrl && returnUrl.IsUri())
+        {
+            var host = _urls.Origin;
+            if (returnUrl.StartsWith(host, StringComparison.OrdinalIgnoreCase) == true)
+            {
+                returnUrl = returnUrl.Substring(host.Length);
+            }
+        }
+
         if (returnUrl.IsLocalUrl())
         {
-            var index = returnUrl.IndexOf('?');
-            if (index >= 0)
             {
-                returnUrl = returnUrl[..index];
+                var index = returnUrl.IndexOf('?');
+                if (index >= 0)
+                {
+                    returnUrl = returnUrl.Substring(0, index);
+                }
+            }
+            {
+                var index = returnUrl.IndexOf('#');
+                if (index >= 0)
+                {
+                    returnUrl = returnUrl.Substring(0, index);
+                }
             }
 
-            if (returnUrl.EndsWith(Constants.ProtocolRoutePaths.Authorize, StringComparison.Ordinal) ||
-                returnUrl.EndsWith(Constants.ProtocolRoutePaths.AuthorizeCallback, StringComparison.Ordinal))
+            if (returnUrl.EndsWith(ProtocolRoutePaths.Authorize, StringComparison.Ordinal) ||
+                returnUrl.EndsWith(ProtocolRoutePaths.AuthorizeCallback, StringComparison.Ordinal))
             {
                 _logger.LogTrace("returnUrl is valid");
                 return true;

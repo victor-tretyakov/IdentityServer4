@@ -59,6 +59,8 @@ public class IntrospectionResponseGenerator : IIntrospectionResponseGenerator
             { "active", false }
         };
 
+        var callerName = validationResult.Api?.Name ?? validationResult.Client.ClientId;
+
         // token is invalid
         if (validationResult.IsActive == false)
         {
@@ -68,10 +70,20 @@ public class IntrospectionResponseGenerator : IIntrospectionResponseGenerator
             return response;
         }
 
-        // expected scope not present
-        if (await AreExpectedScopesPresentAsync(validationResult) == false)
+        // client can see all their own scopes
+        var scopes = validationResult.Claims.Where(c => c.Type == JwtClaimTypes.Scope).Select(x => x.Value);
+
+        if (validationResult.Api != null)
         {
-            return response;
+            // expected scope not present
+            if (await AreExpectedScopesPresentAsync(validationResult) == false)
+            {
+                return response;
+            }
+
+            // calculate scopes the API is allowed to see
+            var allowedScopes = validationResult.Api.Scopes;
+            scopes = scopes.Where(x => allowedScopes.Contains(x));
         }
 
         Logger.LogDebug("Creating introspection response for active token.");
@@ -82,10 +94,7 @@ public class IntrospectionResponseGenerator : IIntrospectionResponseGenerator
         // add active flag
         response.Add("active", true);
 
-        // calculate scopes the caller is allowed to see
-        var allowedScopes = validationResult.Api.Scopes;
-        var scopes = validationResult.Claims.Where(c => c.Type == JwtClaimTypes.Scope).Select(x => x.Value);
-        scopes = scopes.Where(x => allowedScopes.Contains(x));
+        // add scopes
         response.Add("scope", scopes.ToSpaceSeparatedString());
 
         await Events.RaiseAsync(new TokenIntrospectionSuccessEvent(validationResult));
@@ -115,7 +124,10 @@ public class IntrospectionResponseGenerator : IIntrospectionResponseGenerator
         {
             // no scopes for this API are found in the token
             Logger.LogError("Expected scope {scopes} is missing in token", apiScopes);
-            await Events.RaiseAsync(new TokenIntrospectionFailureEvent(validationResult.Api.Name, "Expected scopes are missing", validationResult.Token, apiScopes, tokenScopes.Select(s => s.Value)));
+
+            const string errorMessage = "Expected scopes are missing";
+            var callerName = validationResult.Api?.Name ?? validationResult.Client.ClientId;
+            await Events.RaiseAsync(new TokenIntrospectionFailureEvent(validationResult.Api.Name, errorMessage, validationResult.Token, apiScopes, tokenScopes.Select(s => s.Value)));
         }
 
         return result;

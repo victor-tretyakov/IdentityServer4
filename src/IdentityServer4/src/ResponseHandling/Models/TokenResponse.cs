@@ -12,12 +12,17 @@ namespace IdentityServer4.ResponseHandling;
 public class TokenResponse
 {
     /// <summary>
+    /// The type of access token, used to populate the token_type response parameter.
+    /// </summary>
+    public string AccessTokenType { get; set; } = default!;
+
+    /// <summary>
     /// Gets or sets the identity token.
     /// </summary>
     /// <value>
     /// The identity token.
     /// </value>
-    public string IdentityToken { get; set; }
+    public string? IdentityToken { get; set; }
 
     /// <summary>
     /// Gets or sets the access token.
@@ -25,13 +30,13 @@ public class TokenResponse
     /// <value>
     /// The access token.
     /// </value>
-    public string AccessToken { get; set; }
+    public string AccessToken { get; set; } = default!;
 
     /// <summary>
-    /// Gets or sets the access token lifetime.
+    /// Gets or sets the access token lifetime in seconds.
     /// </summary>
     /// <value>
-    /// The access token lifetime.
+    /// The access token lifetime in seconds.
     /// </value>
     public int AccessTokenLifetime { get; set; }
 
@@ -41,7 +46,7 @@ public class TokenResponse
     /// <value>
     /// The refresh token.
     /// </value>
-    public string RefreshToken { get; set; }
+    public string? RefreshToken { get; set; }
 
     /// <summary>
     /// Gets or sets the scope.
@@ -49,7 +54,7 @@ public class TokenResponse
     /// <value>
     /// The scope.
     /// </value>
-    public string Scope { get; set; }
+    public string Scope { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the custom entries.

@@ -9,6 +9,8 @@ using IdentityServer4.Models;
 using System.Linq;
 using System;
 using IdentityServer4.Extensions;
+using IdentityServer4.Services.KeyManagement;
+using Microsoft.IdentityModel.Tokens;
 
 namespace IdentityServer4.Services;
 
@@ -18,48 +20,76 @@ namespace IdentityServer4.Services;
 /// <seealso cref="IKeyMaterialService" />
 public class DefaultKeyMaterialService : IKeyMaterialService
 {
-    private readonly IEnumerable<ISigningCredentialStore> _signingCredentialStores;
     private readonly IEnumerable<IValidationKeysStore> _validationKeysStores;
+    private readonly IEnumerable<ISigningCredentialStore> _signingCredentialStores;
+    private readonly IAutomaticKeyManagerKeyStore _keyManagerKeyStore;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultKeyMaterialService"/> class.
     /// </summary>
     /// <param name="validationKeysStores">The validation keys stores.</param>
     /// <param name="signingCredentialStores">The signing credential store.</param>
-    public DefaultKeyMaterialService(IEnumerable<IValidationKeysStore> validationKeysStores, IEnumerable<ISigningCredentialStore> signingCredentialStores)
+    /// <param name="keyManagerKeyStore">The store for automatic key management.</param>
+    public DefaultKeyMaterialService(
+        IEnumerable<IValidationKeysStore> validationKeysStores,
+        IEnumerable<ISigningCredentialStore> signingCredentialStores,
+        IAutomaticKeyManagerKeyStore keyManagerKeyStore)
     {
-        _signingCredentialStores = signingCredentialStores;
         _validationKeysStores = validationKeysStores;
+        _signingCredentialStores = signingCredentialStores;
+        _keyManagerKeyStore = keyManagerKeyStore;
     }
 
     /// <inheritdoc/>
-    public async Task<Microsoft.IdentityModel.Tokens.SigningCredentials> GetSigningCredentialsAsync(IEnumerable<string> allowedAlgorithms = null)
+    public async Task<SigningCredentials> GetSigningCredentialsAsync(IEnumerable<string> allowedAlgorithms = null)
     {
-        if (_signingCredentialStores.Any())
+        if (IEnumerableExtensions.IsNullOrEmpty(allowedAlgorithms))
         {
-            if (allowedAlgorithms.IsNullOrEmpty())
+            var list = _signingCredentialStores.ToList();
+            for (var i = 0; i < list.Count; i++)
             {
-                return await _signingCredentialStores.First().GetSigningCredentialsAsync();
+                var key = await list[i].GetSigningCredentialsAsync();
+                if (key != null)
+                {
+                    return key;
+                }
             }
 
-            var credential = (await GetAllSigningCredentialsAsync()).FirstOrDefault(c => allowedAlgorithms.Contains(c.Algorithm));
+            var automaticKey = await _keyManagerKeyStore.GetSigningCredentialsAsync();
+            if (automaticKey != null)
+            {
+                return automaticKey;
+            }
 
-            return credential is null
-                ? throw new InvalidOperationException($"No signing credential for algorithms ({allowedAlgorithms.ToSpaceSeparatedString()}) registered.")
-                : credential;
+            throw new InvalidOperationException($"No signing credential registered.");
         }
 
-        return null;
+        var credential =
+            (await GetAllSigningCredentialsAsync()).FirstOrDefault(c => allowedAlgorithms.Contains(c.Algorithm));
+
+        return credential is null
+            ? throw new InvalidOperationException($"No signing credential for algorithms ({allowedAlgorithms.ToSpaceSeparatedString()}) registered.")
+            : credential;
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<Microsoft.IdentityModel.Tokens.SigningCredentials>> GetAllSigningCredentialsAsync()
+    public async Task<IEnumerable<SigningCredentials>> GetAllSigningCredentialsAsync()
     {
-        var credentials = new List<Microsoft.IdentityModel.Tokens.SigningCredentials>();
+        var credentials = new List<SigningCredentials>();
 
         foreach (var store in _signingCredentialStores)
         {
-            credentials.Add(await store.GetSigningCredentialsAsync());
+            var signingKey = await store.GetSigningCredentialsAsync();
+            if (signingKey != null)
+            {
+                credentials.Add(signingKey);
+            }
+        }
+
+        var automaticSigningKeys = await _keyManagerKeyStore.GetAllSigningCredentialsAsync();
+        if (automaticSigningKeys != null)
+        {
+            credentials.AddRange(automaticSigningKeys);
         }
 
         return credentials;
@@ -70,9 +100,19 @@ public class DefaultKeyMaterialService : IKeyMaterialService
     {
         var keys = new List<SecurityKeyInfo>();
 
+        var automaticSigningKeys = await _keyManagerKeyStore.GetValidationKeysAsync();
+        if (automaticSigningKeys?.Any() == true)
+        {
+            keys.AddRange(automaticSigningKeys);
+        }
+
         foreach (var store in _validationKeysStores)
         {
-            keys.AddRange(await store.GetValidationKeysAsync());
+            var validationKeys = await store.GetValidationKeysAsync();
+            if (validationKeys.Any())
+            {
+                keys.AddRange(validationKeys);
+            }
         }
 
         return keys;

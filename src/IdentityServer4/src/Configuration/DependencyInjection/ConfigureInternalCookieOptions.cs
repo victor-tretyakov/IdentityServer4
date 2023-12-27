@@ -89,8 +89,8 @@ internal class PostConfigureInternalCookieOptions : IPostConfigureOptions<Cookie
     public void PostConfigure(string name, CookieAuthenticationOptions options)
     {
         var scheme = _idsrv.Authentication.CookieAuthenticationScheme ??
-            _authOptions.Value.DefaultAuthenticateScheme ??
-            _authOptions.Value.DefaultScheme;
+                     _authOptions.Value.DefaultAuthenticateScheme ??
+                     _authOptions.Value.DefaultScheme;
 
         if (name == scheme)
         {

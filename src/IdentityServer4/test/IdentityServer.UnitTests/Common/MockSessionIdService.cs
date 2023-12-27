@@ -1,43 +1,42 @@
-﻿// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
+// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
 
-namespace IdentityServer.UnitTests.Common
-{
-    //public class MockSessionIdService : ISessionIdService
-    //{
-    //    public bool RemoveCookieWasCalled { get; private set; }
-    //    public string SessionId { get; set; } = "session_id";
+namespace IdentityServer.UnitTests.Common;
 
-    //    public void CreateSessionId(SignInContext context)
-    //    {
-    //    }
+//public class MockSessionIdService : ISessionIdService
+//{
+//    public bool RemoveCookieWasCalled { get; private set; }
+//    public string SessionId { get; set; } = "session_id";
 
-    //    public Task EnsureSessionCookieAsync()
-    //    {
-    //        return Task.CompletedTask;
-    //    }
+//    public void CreateSessionId(SignInContext context)
+//    {
+//    }
 
-    //    public string GetCookieName()
-    //    {
-    //        return "sessionid";
-    //    }
+//    public Task EnsureSessionCookieAsync()
+//    {
+//        return Task.CompletedTask;
+//    }
 
-    //    public string GetCookieValue()
-    //    {
-    //        return SessionId;
-    //    }
+//    public string GetCookieName()
+//    {
+//        return "sessionid";
+//    }
 
-    //    public Task<string> GetCurrentSessionIdAsync()
-    //    {
-    //        return Task.FromResult(SessionId);
-    //    }
+//    public string GetCookieValue()
+//    {
+//        return SessionId;
+//    }
 
-    //    public void RemoveCookie()
-    //    {
-    //        RemoveCookieWasCalled = true;
-    //        SessionId = null;
-    //    }
-    //}
-}
+//    public Task<string> GetCurrentSessionIdAsync()
+//    {
+//        return Task.FromResult(SessionId);
+//    }
+
+//    public void RemoveCookie()
+//    {
+//        RemoveCookieWasCalled = true;
+//        SessionId = null;
+//    }
+//}

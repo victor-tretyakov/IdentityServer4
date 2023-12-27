@@ -30,10 +30,10 @@ public class ClaimsTransformationContext
     /// <summary>
     /// The principal
     /// </summary>
-    public ClaimsPrincipal Principal { get; set; }
+    public ClaimsPrincipal Principal { get; set; } = default!;
 
     /// <summary>
     /// the HTTP context
     /// </summary>
-    public HttpContext HttpContext { get; internal set; }
+    public HttpContext HttpContext { get; internal set; } = default!;
 }

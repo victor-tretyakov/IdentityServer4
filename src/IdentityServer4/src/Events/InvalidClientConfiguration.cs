@@ -1,7 +1,6 @@
 // Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
-
 using IdentityServer4.Models;
 
 namespace IdentityServer4.Events;
@@ -13,16 +12,16 @@ namespace IdentityServer4.Events;
 public class InvalidClientConfigurationEvent : Event
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="UnhandledExceptionEvent" /> class.
+    /// Initializes a new instance of the <see cref="InvalidClientConfigurationEvent" /> class.
     /// </summary>
     /// <param name="client">The client.</param>
     /// <param name="errorMessage">The error message.</param>
     public InvalidClientConfigurationEvent(Client client, string errorMessage)
         : base(EventCategories.Error,
-              "Invalid Client Configuration",
-              EventTypes.Error, 
-              EventIds.InvalidClientConfiguration,
-              errorMessage)
+            "Invalid Client Configuration",
+            EventTypes.Error,
+            EventIds.InvalidClientConfiguration,
+            errorMessage)
     {
         ClientId = client.ClientId;
         ClientName = client.ClientName ?? "unknown name";

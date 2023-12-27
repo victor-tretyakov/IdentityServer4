@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using System;
-using System.Collections.Generic;
 
 namespace IdentityServer4.Infrastructure;
 
@@ -17,24 +16,24 @@ namespace IdentityServer4.Infrastructure;
 /// </summary>
 public class DistributedCacheStateDataFormatter : ISecureDataFormat<AuthenticationProperties>
 {
-    private readonly IHttpContextAccessor _httpContext;
     private readonly string _name;
+    private readonly IServiceProvider _provider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DistributedCacheStateDataFormatter"/> class.
     /// </summary>
-    /// <param name="httpContext">The HTTP context accessor.</param>
+    /// <param name="provider">The service provider.</param>
     /// <param name="name">The scheme name.</param>
-    public DistributedCacheStateDataFormatter(IHttpContextAccessor httpContext, string name)
+    public DistributedCacheStateDataFormatter(IServiceProvider provider, string name)
     {
-        _httpContext = httpContext;
+        _provider = provider;
         _name = name;
     }
 
-    private string CacheKeyPrefix => "DistributedCacheStateDataFormatter";
+    private static string CacheKeyPrefix => "DistributedCacheStateDataFormatter";
 
-    private IDistributedCache Cache => _httpContext.HttpContext.RequestServices.GetRequiredService<IDistributedCache>();
-    private IDataProtector Protector => _httpContext.HttpContext.RequestServices.GetRequiredService<IDataProtectionProvider>().CreateProtector(CacheKeyPrefix, _name);
+    private IDistributedCache Cache => _provider.GetRequiredService<IDistributedCache>();
+    private IDataProtector Protector => _provider.GetRequiredService<IDataProtectionProvider>().CreateProtector(CacheKeyPrefix, _name);
 
     /// <summary>
     /// Protects the specified data.
@@ -56,7 +55,7 @@ public class DistributedCacheStateDataFormatter : ISecureDataFormat<Authenticati
     {
         var key = Guid.NewGuid().ToString();
         var cacheKey = $"{CacheKeyPrefix}-{_name}-{purpose}-{key}";
-        var json = ObjectSerializer.ToString(data.Items);
+        var json = ObjectSerializer.ToString(data);
 
         var options = new DistributedCacheEntryOptions();
         if (data.ExpiresUtc.HasValue)
@@ -67,7 +66,7 @@ public class DistributedCacheStateDataFormatter : ISecureDataFormat<Authenticati
         {
             options.SetSlidingExpiration(Constants.DefaultCacheDuration);
         }
-        
+
         // Rather than encrypt the full AuthenticationProperties
         // cache the data and encrypt the key that points to the data
         Cache.SetString(cacheKey, json, options);
@@ -108,8 +107,7 @@ public class DistributedCacheStateDataFormatter : ISecureDataFormat<Authenticati
             return null;
         }
 
-        var items = ObjectSerializer.FromString<Dictionary<string, string>>(json);
-        var props = new AuthenticationProperties(items);
+        var props = ObjectSerializer.FromString<AuthenticationProperties>(json);
         return props;
     }
 }

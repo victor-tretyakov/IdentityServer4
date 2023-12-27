@@ -23,7 +23,12 @@ public class LocalApiAuthenticationHandler : AuthenticationHandler<LocalApiAuthe
     private readonly ILogger _logger;
 
     /// <inheritdoc />
-    public LocalApiAuthenticationHandler(IOptionsMonitor<LocalApiAuthenticationOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock, ITokenValidator tokenValidator)
+    public LocalApiAuthenticationHandler(
+        IOptionsMonitor<LocalApiAuthenticationOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder,
+        ISystemClock clock,
+        ITokenValidator tokenValidator)
         : base(options, logger, encoder, clock)
     {
         _tokenValidator = tokenValidator;
@@ -36,7 +41,7 @@ public class LocalApiAuthenticationHandler : AuthenticationHandler<LocalApiAuthe
     /// </summary>
     protected new LocalApiAuthenticationEvents Events
     {
-        get => (LocalApiAuthenticationEvents)base.Events;
+        get => (LocalApiAuthenticationEvents) base.Events;
         set => base.Events = value;
     }
 
@@ -69,18 +74,17 @@ public class LocalApiAuthenticationHandler : AuthenticationHandler<LocalApiAuthe
 
         _logger.LogTrace("Token found: {token}", token);
 
-        var result = await _tokenValidator.ValidateAccessTokenAsync(token, Options.ExpectedScope);
-
-        if (result.IsError)
+        var tokenResult = await _tokenValidator.ValidateAccessTokenAsync(token, Options.ExpectedScope);
+        if (tokenResult.IsError)
         {
             _logger.LogTrace("Failed to validate the token");
 
-            return AuthenticateResult.Fail(result.Error);
+            return AuthenticateResult.Fail(tokenResult.Error);
         }
 
         _logger.LogTrace("Successfully validated the token.");
 
-        var claimsIdentity = new ClaimsIdentity(result.Claims, Scheme.Name, JwtClaimTypes.Name, JwtClaimTypes.Role);
+        var claimsIdentity = new ClaimsIdentity(tokenResult.Claims, Scheme.Name, JwtClaimTypes.Name, JwtClaimTypes.Role);
         var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
         var authenticationProperties = new AuthenticationProperties();
 
@@ -101,7 +105,6 @@ public class LocalApiAuthenticationHandler : AuthenticationHandler<LocalApiAuthe
         await Events.ClaimsTransformation(claimsTransformationContext);
 
         var authenticationTicket = new AuthenticationTicket(claimsTransformationContext.Principal, authenticationProperties, Scheme.Name);
-
         return AuthenticateResult.Success(authenticationTicket);
     }
 }

@@ -2,20 +2,19 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Threading.Tasks;
 using FluentAssertions;
 using IdentityModel;
 using IdentityModel.Client;
 using IdentityServer.IntegrationTests.Clients.Setup;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace IdentityServer.IntegrationTests.Clients;
@@ -172,19 +171,19 @@ public class UserInfoEndpointClient
         });
 
         response.IsError.Should().BeFalse();
-        
+
         var payload = GetPayload(response);
 
-        var scopes = ((JsonElement) payload["scope"]).EnumerateArray().Select(x => x.ToString()).ToArray();
-        scopes.Length.Should().Be(5);
+        var scopes = ((JsonElement) payload["scope"]).ToStringList();
+        scopes.Count.Should().Be(5);
         scopes.Should().Contain("openid");
         scopes.Should().Contain("email");
         scopes.Should().Contain("api1");
         scopes.Should().Contain("api4.with.roles");
         scopes.Should().Contain("roles");
 
-        var roles = ((JsonElement) payload["role"]).EnumerateArray().Select(x => x.ToString()).ToArray();
-        roles.Length.Should().Be(2);
+        var roles = ((JsonElement) payload["role"]).ToStringList();
+        roles.Count.Should().Be(2);
         roles.Should().Contain("Geek");
         roles.Should().Contain("Developer");
 
@@ -194,13 +193,13 @@ public class UserInfoEndpointClient
             Token = response.AccessToken
         });
 
-        roles = userInfo.Json.TryGetValue("role").EnumerateArray().Select(x => x.ToString()).ToArray();
-        roles.Length.Should().Be(2);
+        roles = userInfo.Json.TryGetStringArray("role").ToList();
+        roles.Count.Should().Be(2);
         roles.Should().Contain("Geek");
         roles.Should().Contain("Developer");
     }
 
-    private static Dictionary<string, object> GetPayload(TokenResponse response)
+    private Dictionary<string, object> GetPayload(TokenResponse response)
     {
         var token = response.AccessToken.Split('.').Skip(1).Take(1).First();
         var dictionary = JsonSerializer.Deserialize<Dictionary<string, object>>(

@@ -22,9 +22,9 @@ public class ConsentGrantedEvent : Event
     /// <param name="consentRemembered">if set to <c>true</c> consent was remembered.</param>
     public ConsentGrantedEvent(string subjectId, string clientId, IEnumerable<string> requestedScopes, IEnumerable<string> grantedScopes, bool consentRemembered)
         : base(EventCategories.Grants,
-              "Consent granted",
-              EventTypes.Information,
-              EventIds.ConsentGranted)
+            "Consent granted",
+            EventTypes.Information,
+            EventIds.ConsentGranted)
     {
         SubjectId = subjectId;
         ClientId = clientId;

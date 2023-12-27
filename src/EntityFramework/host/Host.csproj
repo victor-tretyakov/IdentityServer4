@@ -4,16 +4,13 @@
     <TargetFramework>net7.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.AspNetCore" />
-    <PackageReference Include="Serilog.Sinks.Console" />
-    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\src\IdentityServer4.EntityFramework.csproj" />
-
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
   </ItemGroup>
 
 </Project>

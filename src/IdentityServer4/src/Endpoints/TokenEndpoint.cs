@@ -13,6 +13,7 @@ using IdentityServer4.Validation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace IdentityServer4.Endpoints;
@@ -41,7 +42,7 @@ internal class TokenEndpoint : IEndpointHandler
         IClientSecretValidator clientValidator,
         ITokenRequestValidator requestValidator,
         ITokenResponseGenerator responseGenerator,
-        IEventService events, 
+        IEventService events,
         ILogger<TokenEndpoint> logger)
     {
         _clientValidator = clientValidator;
@@ -67,7 +68,15 @@ internal class TokenEndpoint : IEndpointHandler
             return Error(OidcConstants.TokenErrors.InvalidRequest);
         }
 
-        return await ProcessTokenRequestAsync(context);
+        try
+        {
+            return await ProcessTokenRequestAsync(context);
+        }
+        catch (InvalidDataException ex)
+        {
+            _logger.LogWarning(ex, "Invalid HTTP request for token endpoint");
+            return Error(OidcConstants.TokenErrors.InvalidRequest);
+        }
     }
 
     private async Task<IEndpointResult> ProcessTokenRequestAsync(HttpContext context)
@@ -76,21 +85,31 @@ internal class TokenEndpoint : IEndpointHandler
 
         // validate client
         var clientResult = await _clientValidator.ValidateAsync(context);
-
-        if (clientResult.Client == null)
+        if (clientResult.IsError)
         {
-            return Error(OidcConstants.TokenErrors.InvalidClient);
+            var errorMsg = clientResult.Error ?? OidcConstants.TokenErrors.InvalidClient;
+            return Error(errorMsg);
         }
 
         // validate request
         var form = (await context.Request.ReadFormAsync()).AsNameValueCollection();
         _logger.LogTrace("Calling into token request validator: {type}", _requestValidator.GetType().FullName);
-        var requestResult = await _requestValidator.ValidateRequestAsync(form, clientResult);
 
+        var requestContext = new TokenRequestValidationContext
+        {
+            RequestParameters = form,
+            ClientValidationResult = clientResult,
+        };
+
+        // mTLS cert
+        requestContext.ClientCertificate = await context.Connection.GetClientCertificateAsync();
+
+        var requestResult = await _requestValidator.ValidateRequestAsync(requestContext);
         if (requestResult.IsError)
         {
             await _events.RaiseAsync(new TokenIssuedFailureEvent(requestResult));
-            return Error(requestResult.Error, requestResult.ErrorDescription, requestResult.CustomResponse);
+            var err = Error(requestResult.Error, requestResult.ErrorDescription, requestResult.CustomResponse);
+            return err;
         }
 
         // create response

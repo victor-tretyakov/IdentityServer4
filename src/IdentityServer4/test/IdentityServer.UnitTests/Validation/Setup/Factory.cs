@@ -3,9 +3,10 @@
 
 
 using IdentityServer.UnitTests.Common;
+using IdentityServer4.Configuration;
 using IdentityServer4.Models;
 using IdentityServer4.Services;
-using IdentityServer4.Services.Default;
+using IdentityServer4.Services.KeyManagement;
 using IdentityServer4.Stores;
 using IdentityServer4.Stores.Serialization;
 using IdentityServer4.Validation;
@@ -27,47 +28,34 @@ internal static class Factory
 
     public static TokenRequestValidator CreateTokenRequestValidator(
         IdentityServerOptions options = null,
+        IIssuerNameService issuerNameService = null,
         IResourceStore resourceStore = null,
         IAuthorizationCodeStore authorizationCodeStore = null,
         IRefreshTokenStore refreshTokenStore = null,
         IResourceOwnerPasswordValidator resourceOwnerValidator = null,
         IProfileService profile = null,
         IDeviceCodeValidator deviceCodeValidator = null,
+        IBackchannelAuthenticationRequestIdValidator backchannelAuthenticationRequestIdValidator = null,
         IEnumerable<IExtensionGrantValidator> extensionGrantValidators = null,
         ICustomTokenRequestValidator customRequestValidator = null,
-        ITokenValidator tokenValidator = null,
         IRefreshTokenService refreshTokenService = null,
         IResourceValidator resourceValidator = null)
     {
-        if (options == null)
-        {
-            options = TestIdentityServerOptions.Create();
-        }
+        options ??= TestIdentityServerOptions.Create();
 
-        if (resourceStore == null)
-        {
-            resourceStore = new InMemoryResourcesStore(TestScopes.GetIdentity(), TestScopes.GetApis(), TestScopes.GetScopes());
-        }
+        issuerNameService ??= new TestIssuerNameService(options.IssuerUri);
 
-        if (resourceOwnerValidator == null)
-        {
-            resourceOwnerValidator = new TestResourceOwnerPasswordValidator();
-        }
+        resourceStore ??= new InMemoryResourcesStore(TestScopes.GetIdentity(), TestScopes.GetApis(), TestScopes.GetScopes());
 
-        if (profile == null)
-        {
-            profile = new TestProfileService();
-        }
-        
-        if (deviceCodeValidator == null)
-        {
-            deviceCodeValidator = new TestDeviceCodeValidator();
-        }
+        resourceOwnerValidator ??= new TestResourceOwnerPasswordValidator();
 
-        if (customRequestValidator == null)
-        {
-            customRequestValidator = new DefaultCustomTokenRequestValidator();
-        }
+        profile ??= new TestProfileService();
+
+        deviceCodeValidator ??= new TestDeviceCodeValidator();
+
+        backchannelAuthenticationRequestIdValidator ??= new TestBackchannelAuthenticationRequestIdValidator();
+
+        customRequestValidator ??= new DefaultCustomTokenRequestValidator();
 
         ExtensionGrantValidator aggregateExtensionGrantValidator;
         if (extensionGrantValidators == null)
@@ -79,56 +67,51 @@ internal static class Factory
             aggregateExtensionGrantValidator = new ExtensionGrantValidator(extensionGrantValidators, TestLogger.Create<ExtensionGrantValidator>());
         }
 
-        if (authorizationCodeStore == null)
-        {
-            authorizationCodeStore = CreateAuthorizationCodeStore();
-        }
+        authorizationCodeStore ??= CreateAuthorizationCodeStore();
 
-        if (refreshTokenStore == null)
-        {
-            refreshTokenStore = CreateRefreshTokenStore();
-        }
+        refreshTokenStore ??= CreateRefreshTokenStore();
 
-        if (resourceValidator == null)
-        {
-            resourceValidator = CreateResourceValidator(resourceStore);
-        }
-        
-        if (tokenValidator == null)
-        {
-            tokenValidator = CreateTokenValidator(refreshTokenStore: refreshTokenStore, profile: profile);
-        }
+        resourceValidator ??= CreateResourceValidator(resourceStore);
 
-        if (refreshTokenService == null)
-        {
-            refreshTokenService = CreateRefreshTokenService(
+        refreshTokenService ??= CreateRefreshTokenService(
                 refreshTokenStore,
                 profile);
-        }
 
         return new TokenRequestValidator(
             options,
+            issuerNameService,
             authorizationCodeStore,
             resourceOwnerValidator,
             profile,
             deviceCodeValidator,
+            backchannelAuthenticationRequestIdValidator,
             aggregateExtensionGrantValidator,
             customRequestValidator,
             resourceValidator,
             resourceStore,
-            tokenValidator,
             refreshTokenService,
-            new TestEventService(), 
-            new StubClock(), 
+            new TestEventService(),
+            new StubClock(),
             TestLogger.Create<TokenRequestValidator>());
     }
 
-    private static IRefreshTokenService CreateRefreshTokenService(IRefreshTokenStore store, IProfileService profile)
+    public static IRefreshTokenService CreateRefreshTokenService(IRefreshTokenStore store = null, IProfileService profile = null)
+    {
+        return CreateRefreshTokenService(store ?? CreateRefreshTokenStore(),
+            profile ?? new TestProfileService(),
+            new PersistentGrantOptions());
+    }
+
+    private static IRefreshTokenService CreateRefreshTokenService(
+        IRefreshTokenStore store,
+        IProfileService profile,
+        PersistentGrantOptions options)
     {
         var service = new DefaultRefreshTokenService(
             store,
             profile,
             new StubClock(),
+            options,
             TestLogger.Create<DefaultRefreshTokenService>());
 
         return service;
@@ -136,7 +119,7 @@ internal static class Factory
 
     internal static IResourceValidator CreateResourceValidator(IResourceStore store = null)
     {
-        store = store ?? new InMemoryResourcesStore(TestScopes.GetIdentity(), TestScopes.GetApis(), TestScopes.GetScopes());
+        store ??= new InMemoryResourcesStore(TestScopes.GetIdentity(), TestScopes.GetApis(), TestScopes.GetScopes());
         return new DefaultResourceValidator(store, new DefaultScopeParser(TestLogger.Create<DefaultScopeParser>()), TestLogger.Create<DefaultResourceValidator>());
     }
 
@@ -144,8 +127,11 @@ internal static class Factory
     {
         return new DefaultTokenCreationService(
             new StubClock(),
-            new DefaultKeyMaterialService(new IValidationKeysStore[] { },
-                new ISigningCredentialStore[] { new InMemorySigningCredentialsStore(TestCert.LoadSigningCredentials()) }),
+            new DefaultKeyMaterialService(
+                Array.Empty<IValidationKeysStore>(),
+                new ISigningCredentialStore[] { new InMemorySigningCredentialsStore(TestCert.LoadSigningCredentials()) },
+                new NopAutomaticKeyManagerKeyStore()
+            ),
             options ?? TestIdentityServerOptions.Create(),
             TestLogger.Create<DefaultTokenCreationService>());
     }
@@ -155,21 +141,11 @@ internal static class Factory
         IResourceStore resourceStore = null,
         IResourceValidator resourceValidator = null)
     {
-        if (options == null)
-        {
-            options = TestIdentityServerOptions.Create();
-        }
-        
-        if (resourceStore == null)
-        {
-            resourceStore = new InMemoryResourcesStore(TestScopes.GetIdentity(), TestScopes.GetApis(), TestScopes.GetScopes());
-        }
+        options ??= TestIdentityServerOptions.Create();
 
-        if (resourceValidator == null)
-        {
-            resourceValidator = CreateResourceValidator(resourceStore);
-        }
+        resourceStore ??= new InMemoryResourcesStore(TestScopes.GetIdentity(), TestScopes.GetApis(), TestScopes.GetScopes());
 
+        resourceValidator ??= CreateResourceValidator(resourceStore);
 
         return new DeviceAuthorizationRequestValidator(
             options,
@@ -179,54 +155,35 @@ internal static class Factory
 
     public static AuthorizeRequestValidator CreateAuthorizeRequestValidator(
         IdentityServerOptions options = null,
+        IIssuerNameService issuerNameService = null,
         IResourceStore resourceStore = null,
         IClientStore clients = null,
-        IProfileService profile = null,
         ICustomAuthorizeRequestValidator customValidator = null,
         IRedirectUriValidator uriValidator = null,
         IResourceValidator resourceValidator = null,
         IRequestObjectValidator requestObjectValidator = null)
     {
-        if (options == null)
-        {
-            options = TestIdentityServerOptions.Create();
-        }
+        options ??= TestIdentityServerOptions.Create();
 
-        if (resourceStore == null)
-        {
-            resourceStore = new InMemoryResourcesStore(TestScopes.GetIdentity(), TestScopes.GetApis(), TestScopes.GetScopes());
-        }
+        issuerNameService ??= new TestIssuerNameService(options.IssuerUri);
 
-        if (clients == null)
-        {
-            clients = new InMemoryClientStore(TestClients.Get());
-        }
+        resourceStore ??= new InMemoryResourcesStore(TestScopes.GetIdentity(), TestScopes.GetApis(), TestScopes.GetScopes());
 
-        if (customValidator == null)
-        {
-            customValidator = new DefaultCustomAuthorizeRequestValidator();
-        }
+        clients ??= new InMemoryClientStore(TestClients.Get());
 
-        if (uriValidator == null)
-        {
-            uriValidator = new StrictRedirectUriValidator();
-        }
+        customValidator ??= new DefaultCustomAuthorizeRequestValidator();
 
-        if (resourceValidator == null)
-        {
-            resourceValidator = CreateResourceValidator(resourceStore);
-        }
+        uriValidator ??= new StrictRedirectUriValidator(options);
 
-        if (requestObjectValidator == null)
-        {
-            requestObjectValidator = CreateRequestObjectValidator();
-        }
-
+        resourceValidator ??= CreateResourceValidator(resourceStore);
 
         var userSession = new MockUserSession();
 
+        requestObjectValidator ??= CreateRequestObjectValidator();
+
         return new AuthorizeRequestValidator(
             options,
+            issuerNameService,
             clients,
             customValidator,
             uriValidator,
@@ -239,50 +196,42 @@ internal static class Factory
     public static RequestObjectValidator CreateRequestObjectValidator(
         JwtRequestValidator jwtRequestValidator = null,
         IJwtRequestUriHttpClient jwtRequestUriHttpClient = null,
+        IPushedAuthorizationService pushedAuthorizationService = null,
         IdentityServerOptions options = null)
     {
         jwtRequestValidator ??= new JwtRequestValidator("https://identityserver",
             new LoggerFactory().CreateLogger<JwtRequestValidator>());
-        jwtRequestUriHttpClient = new DefaultJwtRequestUriHttpClient(new HttpClient(new NetworkHandler(new Exception("no jwt request uri response configured"))), options, new LoggerFactory()); ;
+        jwtRequestUriHttpClient ??= new DefaultJwtRequestUriHttpClient(
+            new HttpClient(new NetworkHandler(new Exception("no jwt request uri response configured"))), options,
+            new LoggerFactory(), new NoneCancellationTokenProvider());
+        pushedAuthorizationService ??= new TestPushedAuthorizationService();
         options ??= TestIdentityServerOptions.Create();
 
         return new RequestObjectValidator(
             jwtRequestValidator,
             jwtRequestUriHttpClient,
+            pushedAuthorizationService,
             options,
             TestLogger.Create<RequestObjectValidator>());
     }
 
     public static TokenValidator CreateTokenValidator(
-        IReferenceTokenStore store = null, 
+        IReferenceTokenStore store = null,
         IRefreshTokenStore refreshTokenStore = null,
-        IProfileService profile = null, 
-        IdentityServerOptions options = null, ISystemClock clock = null)
+        IProfileService profile = null,
+        IIssuerNameService issuerNameService = null,
+        IdentityServerOptions options = null,
+        ISystemClock clock = null)
     {
-        if (options == null)
-        {
-            options = TestIdentityServerOptions.Create();
-        }
-
-        if (profile == null)
-        {
-            profile = new TestProfileService();
-        }
-
-        if (store == null)
-        {
-            store = CreateReferenceTokenStore();
-        }
-
-        clock = clock ?? new StubClock();
-
-        if (refreshTokenStore == null)
-        {
-            refreshTokenStore = CreateRefreshTokenStore();
-        }
+        options ??= TestIdentityServerOptions.Create();
+        profile ??= new TestProfileService();
+        store ??= CreateReferenceTokenStore();
+        clock ??= new StubClock();
+        refreshTokenStore ??= CreateRefreshTokenStore();
+        issuerNameService ??= new TestIssuerNameService(options.IssuerUri);
 
         var clients = CreateClientStore();
-        var context = new MockHttpContextAccessor(options);
+
         var logger = TestLogger.Create<TokenValidator>();
 
         var keyInfo = new SecurityKeyInfo
@@ -296,12 +245,16 @@ internal static class Factory
             clock: clock,
             profile: profile,
             referenceTokenStore: store,
-            refreshTokenStore: refreshTokenStore,
             customValidator: new DefaultCustomTokenValidator(),
-                keys: new DefaultKeyMaterialService(new[] { new InMemoryValidationKeysStore(new[] { keyInfo }) }, Enumerable.Empty<ISigningCredentialStore>()),
+            keys: new DefaultKeyMaterialService(
+                new[] { new InMemoryValidationKeysStore(new[] { keyInfo }) },
+                Enumerable.Empty<ISigningCredentialStore>(),
+                new NopAutomaticKeyManagerKeyStore()
+            ),
+            sessionCoordinationService: new StubSessionCoordinationService(),
             logger: logger,
             options: options,
-            context: context);
+            issuerNameService: issuerNameService);
 
         return validator;
     }
@@ -312,10 +265,10 @@ internal static class Factory
         IDeviceFlowThrottlingService throttlingService = null,
         ISystemClock clock = null)
     {
-        profile = profile ?? new TestProfileService();
-        throttlingService = throttlingService ?? new TestDeviceFlowThrottlingService();
-        clock = clock ?? new StubClock();
-        
+        profile ??= new TestProfileService();
+        throttlingService ??= new TestDeviceFlowThrottlingService();
+        clock ??= new StubClock();
+
         var validator = new DeviceCodeValidator(service, profile, throttlingService, clock, TestLogger.Create<DeviceCodeValidator>());
 
         return validator;
@@ -323,9 +276,9 @@ internal static class Factory
 
     public static IClientSecretValidator CreateClientSecretValidator(IClientStore clients = null, SecretParser parser = null, SecretValidator validator = null, IdentityServerOptions options = null)
     {
-        options = options ?? TestIdentityServerOptions.Create();
+        options ??= TestIdentityServerOptions.Create();
 
-        if (clients == null) clients = new InMemoryClientStore(TestClients.Get());
+        clients ??= new InMemoryClientStore(TestClients.Get());
 
         if (parser == null)
         {
@@ -359,7 +312,7 @@ internal static class Factory
             new DefaultHandleGenerationService(),
             TestLogger.Create<DefaultAuthorizationCodeStore>());
     }
-    
+
     public static IRefreshTokenStore CreateRefreshTokenStore()
     {
         return new DefaultRefreshTokenStore(new InMemoryPersistedGrantStore(),
@@ -367,7 +320,7 @@ internal static class Factory
             new DefaultHandleGenerationService(),
             TestLogger.Create<DefaultRefreshTokenStore>());
     }
-    
+
     public static IReferenceTokenStore CreateReferenceTokenStore()
     {
         return new DefaultReferenceTokenStore(new InMemoryPersistedGrantStore(),
@@ -380,7 +333,7 @@ internal static class Factory
     {
         return new DefaultDeviceFlowCodeService(new InMemoryDeviceFlowStore(), new DefaultHandleGenerationService());
     }
-    
+
     public static IUserConsentStore CreateUserConsentStore()
     {
         return new DefaultUserConsentStore(new InMemoryPersistedGrantStore(),

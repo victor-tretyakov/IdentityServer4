@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 namespace IdentityServer4.ResponseHandling;
 
 /// <summary>
-/// The device authorizaiton response generator
+/// The device authorization response generator
 /// </summary>
 /// <seealso cref="IDeviceAuthorizationResponseGenerator" />
 public class DeviceAuthorizationResponseGenerator : IDeviceAuthorizationResponseGenerator
@@ -73,26 +73,24 @@ public class DeviceAuthorizationResponseGenerator : IDeviceAuthorizationResponse
     public virtual async Task<DeviceAuthorizationResponse> ProcessAsync(DeviceAuthorizationRequestValidationResult validationResult, string baseUrl)
     {
         if (validationResult == null) throw new ArgumentNullException(nameof(validationResult));
-
         if (validationResult.ValidatedRequest.Client == null) throw new ArgumentNullException(nameof(validationResult.ValidatedRequest.Client));
-
         if (string.IsNullOrWhiteSpace(baseUrl)) throw new ArgumentException("Value cannot be null or whitespace.", nameof(baseUrl));
 
         Logger.LogTrace("Creating response for device authorization request");
 
         var response = new DeviceAuthorizationResponse();
-        
+
         // generate user_code
         var userCodeGenerator = await UserCodeService.GetGenerator(
             validationResult.ValidatedRequest.Client.UserCodeType ??
             Options.DeviceFlow.DefaultUserCodeType);
-        
+
         var retryCount = 0;
 
         while (retryCount < userCodeGenerator.RetryLimit)
         {
             var userCode = await userCodeGenerator.GenerateAsync();
-            
+
             var deviceCode = await DeviceFlowCodeService.FindByUserCodeAsync(userCode);
             if (deviceCode == null)
             {
@@ -115,7 +113,7 @@ public class DeviceAuthorizationResponseGenerator : IDeviceAuthorizationResponse
             // if url is relative, parse absolute URL
             response.VerificationUri = baseUrl.RemoveTrailingSlash() + Options.UserInteraction.DeviceVerificationUrl;
         }
-        
+
         if (!string.IsNullOrWhiteSpace(Options.UserInteraction.DeviceVerificationUserCodeParameter))
         {
             response.VerificationUriComplete =

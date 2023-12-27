@@ -67,6 +67,14 @@ internal static class ClaimsExtensions
             }
         }
 
+        if (claim.ValueType == ClaimValueTypes.Double)
+        {
+            if (double.TryParse(claim.Value, out var value))
+            {
+                return value;
+            }
+        }
+
         if (claim.ValueType == ClaimValueTypes.Boolean)
         {
             if (bool.TryParse(claim.Value, out var value))

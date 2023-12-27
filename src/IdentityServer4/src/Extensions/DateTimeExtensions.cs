@@ -18,7 +18,7 @@ internal static class DateTimeExtensions
     [DebuggerStepThrough]
     public static int GetLifetimeInSeconds(this DateTime creationTime, DateTime now)
     {
-        return ((int)(now - creationTime).TotalSeconds);
+        return ((int) (now - creationTime).TotalSeconds);
     }
 
     [DebuggerStepThrough]

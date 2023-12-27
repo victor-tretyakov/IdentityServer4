@@ -41,13 +41,17 @@ public static class IdentityServerServiceCollectionExtensions
             .AddCoreServices()
             .AddDefaultEndpoints()
             .AddPluggableServices()
+            .AddKeyManagement()
+            .AddDynamicProvidersCore()
+            .AddOidcDynamicProvider()
             .AddValidators()
             .AddResponseGenerators()
             .AddDefaultSecretParsers()
             .AddDefaultSecretValidators();
 
-        // provide default in-memory implementation, not suitable for most production scenarios
+        // provide default in-memory implementations, not suitable for most production scenarios
         builder.AddInMemoryPersistedGrants();
+        builder.AddInMemoryPushedAuthorizationRequests();
 
         return builder;
     }
@@ -86,7 +90,7 @@ public static class IdentityServerServiceCollectionExtensions
         services.AddSingleton<IPostConfigureOptions<OpenIdConnectOptions>>(
             svcs => new ConfigureOpenIdConnectOptions(
                 schemes,
-                svcs.GetRequiredService<IHttpContextAccessor>())
+                svcs)
         );
 
         return services;

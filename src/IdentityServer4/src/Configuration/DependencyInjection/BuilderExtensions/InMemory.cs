@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
+using IdentityServer4.Storage.Stores;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -72,7 +73,7 @@ public static class IdentityServerBuilderExtensionsInMemory
 
         return builder;
     }
-    
+
     /// <summary>
     /// Adds the in memory API resources.
     /// </summary>
@@ -116,6 +117,17 @@ public static class IdentityServerBuilderExtensionsInMemory
     }
 
     /// <summary>
+    /// Adds in memory clients using an ICollection. This allows
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="clients">The clients.</param>
+    public static IIdentityServerBuilder AddInMemoryClients(this IIdentityServerBuilder builder, ICollection<Client> clients)
+    {
+        builder.Services.AddSingleton(clients);
+        return AddInMemoryClients(builder, (IEnumerable<Client>) clients);
+    }
+
+    /// <summary>
     /// Adds the in memory clients.
     /// </summary>
     /// <param name="builder">The builder.</param>
@@ -127,9 +139,9 @@ public static class IdentityServerBuilderExtensionsInMemory
 
         builder.AddClientStore<InMemoryClientStore>();
 
-        var existingCors = builder.Services.Where(x => x.ServiceType == typeof(ICorsPolicyService)).LastOrDefault();
-        if (existingCors != null && 
-            existingCors.ImplementationType == typeof(DefaultCorsPolicyService) && 
+        var existingCors = builder.Services.LastOrDefault(x => x.ServiceType == typeof(ICorsPolicyService));
+        if (existingCors != null &&
+            existingCors.ImplementationType == typeof(DefaultCorsPolicyService) &&
             existingCors.Lifetime == ServiceLifetime.Transient)
         {
             // if our default is registered, then overwrite with the InMemoryCorsPolicyService
@@ -139,7 +151,6 @@ public static class IdentityServerBuilderExtensionsInMemory
 
         return builder;
     }
-
 
     /// <summary>
     /// Adds the in memory clients.
@@ -166,6 +177,17 @@ public static class IdentityServerBuilderExtensionsInMemory
         builder.Services.TryAddSingleton<IPersistedGrantStore, InMemoryPersistedGrantStore>();
         builder.Services.TryAddSingleton<IDeviceFlowStore, InMemoryDeviceFlowStore>();
 
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the in memory pushed authorization request store.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <returns></returns>
+    public static IIdentityServerBuilder AddInMemoryPushedAuthorizationRequests(this IIdentityServerBuilder builder)
+    {
+        builder.Services.TryAddSingleton<IPushedAuthorizationRequestStore, InMemoryPushedAuthorizationRequestStore>();
         return builder;
     }
 }

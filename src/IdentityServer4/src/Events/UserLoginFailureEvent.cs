@@ -1,9 +1,6 @@
 // Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
-
-using static IdentityServer4.Constants;
-
 namespace IdentityServer4.Events;
 
 /// <summary>
@@ -21,10 +18,10 @@ public class UserLoginFailureEvent : Event
     /// <param name="clientId">The client id</param>
     public UserLoginFailureEvent(string username, string error, bool interactive = true, string clientId = null)
         : base(EventCategories.Authentication,
-              "User Login Failure",
-              EventTypes.Failure, 
-              EventIds.UserLoginFailure,
-              error)
+            "User Login Failure",
+            EventTypes.Failure,
+            EventIds.UserLoginFailure,
+            error)
     {
         Username = username;
         ClientId = clientId;
@@ -35,7 +32,7 @@ public class UserLoginFailureEvent : Event
         }
         else
         {
-            Endpoint = EndpointNames.Token;
+            Endpoint = IdentityServerConstants.EndpointNames.Token;
         }
     }
 

@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
+using IdentityModel;
 using System.Collections.Generic;
 
 #pragma warning disable 1591
@@ -14,7 +15,7 @@ public class GrantTypes
         new[] { GrantType.Implicit };
 
     public static ICollection<string> ImplicitAndClientCredentials =>
-        new[]  { GrantType.Implicit, GrantType.ClientCredentials };
+        new[] { GrantType.Implicit, GrantType.ClientCredentials };
 
     public static ICollection<string> Code =>
         new[] { GrantType.AuthorizationCode };
@@ -39,4 +40,7 @@ public class GrantTypes
 
     public static ICollection<string> DeviceFlow =>
         new[] { GrantType.DeviceFlow };
+
+    public static ICollection<string> Ciba =>
+        new[] { OidcConstants.GrantTypes.Ciba };
 }

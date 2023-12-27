@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
+using static IdentityServer4.IdentityServerConstants;
 
 namespace IdentityServer4.Hosting;
 
@@ -40,10 +41,10 @@ public class MutualTlsEndpointMiddleware
             if (_options.MutualTls.DomainName.IsPresent())
             {
                 // separate domain
-                if (_options.MutualTls.DomainName.Contains('.'))
+                if (_options.MutualTls.DomainName.Contains("."))
                 {
                     if (context.Request.Host.Host.Equals(_options.MutualTls.DomainName,
-                        StringComparison.OrdinalIgnoreCase))
+                            StringComparison.OrdinalIgnoreCase))
                     {
                         var result = await TriggerCertificateAuthentication(context);
                         if (!result.Succeeded)
@@ -55,7 +56,7 @@ public class MutualTlsEndpointMiddleware
                 // sub-domain
                 else
                 {
-                    if (context.Request.Host.Host.StartsWith($"{_options.MutualTls.DomainName}.", StringComparison.OrdinalIgnoreCase))
+                    if (context.Request.Host.Host.StartsWith(_options.MutualTls.DomainName + ".", StringComparison.OrdinalIgnoreCase))
                     {
                         var result = await TriggerCertificateAuthentication(context);
                         if (!result.Succeeded)
@@ -66,13 +67,13 @@ public class MutualTlsEndpointMiddleware
                 }
             }
             // path based MTLS
-            else if (context.Request.Path.StartsWithSegments(Constants.ProtocolRoutePaths.MtlsPathPrefix.EnsureLeadingSlash(), out var subPath))
+            else if (context.Request.Path.StartsWithSegments(ProtocolRoutePaths.MtlsPathPrefix.EnsureLeadingSlash(), out var subPath))
             {
                 var result = await TriggerCertificateAuthentication(context);
 
                 if (result.Succeeded)
                 {
-                    var path = Constants.ProtocolRoutePaths.ConnectPathPrefix +
+                    var path = ProtocolRoutePaths.ConnectPathPrefix +
                                subPath.ToString().EnsureLeadingSlash();
                     path = path.EnsureLeadingSlash();
 
@@ -86,7 +87,7 @@ public class MutualTlsEndpointMiddleware
                 }
             }
         }
-        
+
         await _next(context);
     }
 

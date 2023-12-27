@@ -1,4 +1,4 @@
-﻿IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
 BEGIN
     CREATE TABLE [__EFMigrationsHistory] (
         [MigrationId] nvarchar(150) NOT NULL,
@@ -123,7 +123,6 @@ CREATE UNIQUE INDEX [UserNameIndex] ON [AspNetUsers] ([NormalizedUserName]) WHER
 GO
 
 INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
-VALUES (N'20200323135751_Users', N'3.1.0');
+VALUES (N'20230113185640_Users', N'3.1.0');
 
 GO
-

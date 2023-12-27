@@ -56,7 +56,7 @@ public class UserInfoResponseGenerator : IUserInfoResponseGenerator
     /// </summary>
     /// <param name="validationResult">The userinfo request validation result.</param>
     /// <returns></returns>
-    /// <exception cref="System.InvalidOperationException">Profile service returned incorrect subject value</exception>
+    /// <exception cref="InvalidOperationException">Profile service returned incorrect subject value</exception>
     public virtual async Task<Dictionary<string, object>> ProcessAsync(UserInfoRequestValidationResult validationResult)
     {
         Logger.LogDebug("Creating userinfo response");
@@ -74,8 +74,10 @@ public class UserInfoResponseGenerator : IUserInfoResponseGenerator
             validationResult.Subject,
             validationResult.TokenValidationResult.Client,
             IdentityServerConstants.ProfileDataCallers.UserInfoEndpoint,
-            requestedClaimTypes);
-        context.RequestedResources = validatedResources;
+            requestedClaimTypes)
+        {
+            RequestedResources = validatedResources
+        };
 
         await Profile.GetProfileDataAsync(context);
         var profileClaims = context.IssuedClaims;
@@ -122,12 +124,12 @@ public class UserInfoResponseGenerator : IUserInfoResponseGenerator
         var scopeString = string.Join(" ", scopes);
         Logger.LogDebug("Scopes in access token: {scopes}", scopeString);
 
-        // if we ever parameterize identity scopes, then we would need to invoke the resource validator's parse API here
+        // if we ever parameterized identity scopes, then we would need to invoke the resource validator's parse API here
         var identityResources = await Resources.FindEnabledIdentityResourcesByScopeAsync(scopes);
-        
+
         var resources = new Resources(identityResources, Enumerable.Empty<ApiResource>(), Enumerable.Empty<ApiScope>());
         var result = new ResourceValidationResult(resources);
-        
+
         return result;
     }
 

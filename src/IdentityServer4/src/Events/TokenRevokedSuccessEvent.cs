@@ -20,9 +20,9 @@ public class TokenRevokedSuccessEvent : Event
     /// <param name="client">The client.</param>
     public TokenRevokedSuccessEvent(TokenRevocationRequestValidationResult requestResult, Client client)
         : base(EventCategories.Token,
-              "Token Revoked Success",
-              EventTypes.Success,
-              EventIds.TokenRevokedSuccess)
+            "Token Revoked Success",
+            EventTypes.Success,
+            EventIds.TokenRevokedSuccess)
     {
         ClientId = client.ClientId;
         ClientName = client.ClientName;

@@ -16,7 +16,7 @@ namespace IdentityServer4.Models;
 public class ApiResource : Resource
 {
     private string DebuggerDisplay => Name ?? $"{{{typeof(ApiResource)}}}";
-    
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ApiResource"/> class.
     /// </summary>
@@ -60,7 +60,7 @@ public class ApiResource : Resource
     /// <param name="displayName">The display name.</param>
     /// <param name="userClaims">List of associated user claims that should be included when this resource is requested.</param>
     /// <exception cref="System.ArgumentNullException">name</exception>
-    public ApiResource(string name, string displayName, IEnumerable<string> userClaims)
+    public ApiResource(string name, string? displayName, IEnumerable<string>? userClaims)
     {
         if (name.IsMissing()) throw new ArgumentNullException(nameof(name));
 
@@ -69,12 +69,18 @@ public class ApiResource : Resource
 
         if (!userClaims.IsNullOrEmpty())
         {
-            foreach (var type in userClaims)
+            foreach (var type in userClaims!)
             {
                 UserClaims.Add(type);
             }
         }
     }
+
+    /// <summary>
+    /// Indicates if this API resource requires the resource indicator to request it, 
+    /// and expects access tokens issued to it will only ever contain this API resource as the audience.
+    /// </summary>
+    public bool RequireResourceIndicator { get; set; }
 
     /// <summary>
     /// The API secret is used for the introspection endpoint. The API can authenticate with introspection using the API name and secret.

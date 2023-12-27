@@ -63,14 +63,16 @@ public static class CryptoHelper
     /// <returns></returns>
     public static string CreateHashClaimValue(string value, string tokenSigningAlgorithm)
     {
-        using var sha = GetHashAlgorithmForSigningAlgorithm(tokenSigningAlgorithm);
-        var hash = sha.ComputeHash(Encoding.ASCII.GetBytes(value));
-        var size = (sha.HashSize / 8) / 2;
+        using (var sha = GetHashAlgorithmForSigningAlgorithm(tokenSigningAlgorithm))
+        {
+            var hash = sha.ComputeHash(Encoding.ASCII.GetBytes(value));
+            var size = (sha.HashSize / 8) / 2;
 
-        var leftPart = new byte[size];
-        Array.Copy(hash, leftPart, size);
+            var leftPart = new byte[size];
+            Array.Copy(hash, leftPart, size);
 
-        return Base64Url.Encode(leftPart);
+            return Base64Url.Encode(leftPart);
+        }
     }
 
     /// <summary>
@@ -80,7 +82,7 @@ public static class CryptoHelper
     /// <returns></returns>
     public static HashAlgorithm GetHashAlgorithmForSigningAlgorithm(string signingAlgorithm)
     {
-        var signingAlgorithmBits = int.Parse(signingAlgorithm[^3..]);
+        var signingAlgorithmBits = int.Parse(signingAlgorithm.Substring(signingAlgorithm.Length - 3));
 
         return signingAlgorithmBits switch
         {
@@ -102,6 +104,20 @@ public static class CryptoHelper
             JsonWebKeyECTypes.P384 => ECCurve.NamedCurves.nistP384,
             JsonWebKeyECTypes.P521 => ECCurve.NamedCurves.nistP521,
             _ => throw new InvalidOperationException($"Unsupported curve type of {crv}"),
+        };
+    }
+
+    /// <summary>
+    /// Returns the matching curve name for signing algorithm.
+    /// </summary>
+    internal static string? GetCurveNameFromSigningAlgorithm(string alg)
+    {
+        return alg switch
+        {
+            "ES256" => "P-256",
+            "ES384" => "P-384",
+            "ES512" => "P-521",
+            _ => null
         };
     }
 
@@ -165,9 +181,9 @@ public static class CryptoHelper
         };
     }
 
-    internal static X509Certificate2 FindCertificate(string name, StoreLocation location, NameType nameType)
+    internal static X509Certificate2? FindCertificate(string name, StoreLocation location, NameType nameType)
     {
-        X509Certificate2 certificate = null;
+        X509Certificate2? certificate = null;
 
         if (location == StoreLocation.LocalMachine)
         {

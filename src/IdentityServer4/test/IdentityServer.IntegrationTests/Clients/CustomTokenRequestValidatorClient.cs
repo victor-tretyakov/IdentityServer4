@@ -2,15 +2,15 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Text.Json;
-using System.Threading.Tasks;
 using FluentAssertions;
 using IdentityModel.Client;
 using IdentityServer.IntegrationTests.Clients.Setup;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace IdentityServer.IntegrationTests.Clients;
@@ -46,8 +46,7 @@ public class CustomTokenRequestValidatorClient
         });
 
         var fields = GetFields(response);
-        fields.Keys.Should().Contain("custom");
-        ((JsonElement)fields["custom"]).GetString().Should().Be("custom");
+        fields["custom"].GetString().Should().Be("custom");
     }
 
     [Fact]
@@ -66,8 +65,7 @@ public class CustomTokenRequestValidatorClient
         });
 
         var fields = GetFields(response);
-        fields.Keys.Should().Contain("custom");
-        ((JsonElement) fields["custom"]).GetString().Should().Be("custom");
+        fields["custom"].GetString().Should().Be("custom");
     }
 
     [Fact]
@@ -95,8 +93,7 @@ public class CustomTokenRequestValidatorClient
         });
 
         var fields = GetFields(response);
-        fields.Keys.Should().Contain("custom");
-        ((JsonElement) fields["custom"]).GetString().Should().Be("custom");
+        fields["custom"].GetString().Should().Be("custom");
     }
 
     [Fact]
@@ -118,12 +115,11 @@ public class CustomTokenRequestValidatorClient
         });
 
         var fields = GetFields(response);
-        fields.Keys.Should().Contain("custom");
-        ((JsonElement) fields["custom"]).GetString().Should().Be("custom");
+        fields["custom"].GetString().Should().Be("custom");
     }
 
-    private Dictionary<string, object> GetFields(TokenResponse response)
+    private Dictionary<string, JsonElement> GetFields(TokenResponse response)
     {
-        return JsonSerializer.Deserialize<Dictionary<string, object>>(response.Json);
+        return response.Json.ToObject<Dictionary<string, JsonElement>>();
     }
 }

@@ -23,7 +23,7 @@ public abstract class Event
     /// <param name="id">The identifier.</param>
     /// <param name="message">The message.</param>
     /// <exception cref="System.ArgumentNullException">category</exception>
-    protected Event(string category, string name, EventTypes type, int id, string message = null)
+    protected Event(string category, string name, EventTypes type, int id, string? message = null)
     {
         Category = category ?? throw new ArgumentNullException(nameof(category));
         Name = name ?? throw new ArgumentNullException(nameof(name));
@@ -80,15 +80,16 @@ public abstract class Event
     /// <value>
     /// The message.
     /// </value>
-    public string Message { get; set; }
+    public string? Message { get; set; }
 
     /// <summary>
-    /// Gets or sets the per-request activity identifier.
+    /// Gets or sets the per-request trace identifier (not the Activity Id)
     /// </summary>
     /// <value>
-    /// The activity identifier.
+    /// The HttpContext.TraceIdentifier.
     /// </value>
-    public string ActivityId { get; set; }
+    /// <remarks>Note that this is not the Activity Id despite the name.</remarks>
+    public string? ActivityId { get; set; }
 
     /// <summary>
     /// Gets or sets the time stamp when the event was raised.
@@ -112,7 +113,7 @@ public abstract class Event
     /// <value>
     /// The local ip address.
     /// </value>
-    public string LocalIpAddress { get; set; }
+    public string? LocalIpAddress { get; set; }
 
     /// <summary>
     /// Gets or sets the remote ip address of the current request.
@@ -120,7 +121,7 @@ public abstract class Event
     /// <value>
     /// The remote ip address.
     /// </value>
-    public string RemoteIpAddress { get; set; }
+    public string? RemoteIpAddress { get; set; }
 
     /// <summary>
     /// Obfuscates a token.

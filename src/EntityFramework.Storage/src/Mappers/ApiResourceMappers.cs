@@ -30,6 +30,7 @@ public static class ApiResourceMappers
                 UserClaims = entity.UserClaims?.Select(c => c.Type).ToList() ?? new List<string>(),
                 Properties = entity.Properties?.ToDictionary(p => p.Key, p => p.Value) ?? new Dictionary<string, string>(),
 
+                RequireResourceIndicator = entity.RequireResourceIndicator,
                 ApiSecrets = entity.Secrets?.Select(s => new Models.Secret
                 {
                     Type = s.Type,
@@ -66,6 +67,7 @@ public static class ApiResourceMappers
                     Key = p.Key, Value = p.Value
                 }).ToList() ?? new List<Entities.ApiResourceProperty>(),
 
+                RequireResourceIndicator = model.RequireResourceIndicator,
                 Secrets = model.ApiSecrets?.Select(s => new Entities.ApiResourceSecret
                 {
                     Type = s.Type,

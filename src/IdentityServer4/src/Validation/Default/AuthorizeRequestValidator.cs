@@ -3,6 +3,7 @@
 
 
 using IdentityModel;
+using IdentityServer4.Configuration;
 using IdentityServer4.Extensions;
 using IdentityServer4.Logging.Models;
 using IdentityServer4.Models;
@@ -14,12 +15,14 @@ using System.Collections.Specialized;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using static IdentityServer4.IdentityServerConstants;
 
 namespace IdentityServer4.Validation;
 
 internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
 {
     private readonly IdentityServerOptions _options;
+    private readonly IIssuerNameService _issuerNameService;
     private readonly IClientStore _clients;
     private readonly ICustomAuthorizeRequestValidator _customValidator;
     private readonly IRedirectUriValidator _uriValidator;
@@ -28,11 +31,11 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
     private readonly IRequestObjectValidator _requestObjectValidator;
     private readonly ILogger _logger;
 
-    private readonly ResponseTypeEqualityComparer
-        _responseTypeEqualityComparer = new ResponseTypeEqualityComparer();
+    private readonly ResponseTypeEqualityComparer _responseTypeEqualityComparer = new();
 
     public AuthorizeRequestValidator(
         IdentityServerOptions options,
+        IIssuerNameService issuerNameService,
         IClientStore clients,
         ICustomAuthorizeRequestValidator customValidator,
         IRedirectUriValidator uriValidator,
@@ -42,6 +45,7 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
         ILogger<AuthorizeRequestValidator> logger)
     {
         _options = options;
+        _issuerNameService = issuerNameService;
         _clients = clients;
         _customValidator = customValidator;
         _uriValidator = uriValidator;
@@ -51,17 +55,22 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
         _logger = logger;
     }
 
-    public async Task<AuthorizeRequestValidationResult> ValidateAsync(NameValueCollection parameters, ClaimsPrincipal subject = null)
+    public async Task<AuthorizeRequestValidationResult> ValidateAsync(
+        NameValueCollection parameters,
+        ClaimsPrincipal subject = null,
+        AuthorizeRequestType authorizeRequestType = AuthorizeRequestType.Authorize)
     {
         _logger.LogDebug("Start authorize request protocol validation");
 
         var request = new ValidatedAuthorizeRequest
         {
             Options = _options,
+            IssuerName = await _issuerNameService.GetCurrentAsync(),
             Subject = subject ?? Principal.Anonymous,
-            Raw = parameters ?? throw new ArgumentNullException(nameof(parameters))
+            Raw = parameters ?? throw new ArgumentNullException(nameof(parameters)),
+            AuthorizeRequestType = authorizeRequestType
         };
-        
+
         // load client_id
         // client_id must always be present on the request
         var loadClientResult = await LoadClientAsync(request);
@@ -70,11 +79,11 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
             return loadClientResult;
         }
 
-        // look for JWT in request
-        var jwtRequestResult = await _requestObjectValidator.LoadRequestObjectAsync(request);
-        if (jwtRequestResult.IsError)
+        // load request object
+        var roLoadResult = await _requestObjectValidator.LoadRequestObjectAsync(request);
+        if (roLoadResult.IsError)
         {
-            return jwtRequestResult;
+            return roLoadResult;
         }
 
         // validate request object
@@ -98,8 +107,8 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
             return mandatoryResult;
         }
 
-        // scope, scope restrictions and plausability
-        var scopeResult = await ValidateScopeAsync(request);
+        // scope, scope restrictions and plausibility, and resource indicators
+        var scopeResult = await ValidateScopeAndResourceAsync(request);
         if (scopeResult.IsError)
         {
             return scopeResult;
@@ -131,6 +140,8 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
 
         return Valid(request);
     }
+
+    // Support JAR + PAR together - if there is a request object within the PAR, extract it
 
     private async Task<AuthorizeRequestValidationResult> LoadClientAsync(ValidatedAuthorizeRequest request)
     {
@@ -186,7 +197,7 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
             return Invalid(request, description: "Invalid redirect_uri");
         }
 
-        if (!Uri.TryCreate(redirectUri, UriKind.Absolute, out _))
+        if (!redirectUri.IsUri())
         {
             LogError("malformed redirect_uri", redirectUri, request);
             return Invalid(request, description: "Invalid redirect_uri");
@@ -204,7 +215,8 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
         //////////////////////////////////////////////////////////
         // check if redirect_uri is valid
         //////////////////////////////////////////////////////////
-        if (await _uriValidator.IsRedirectUriValidAsync(redirectUri, request.Client) == false)
+        var uriContext = new RedirectUriValidationContext(redirectUri, request);
+        if (await _uriValidator.IsRedirectUriValidAsync(uriContext) == false)
         {
             LogError("Invalid redirect_uri", redirectUri, request);
             return Invalid(request, OidcConstants.AuthorizeErrors.InvalidRequest, "Invalid redirect_uri");
@@ -233,7 +245,7 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
         if (responseType.IsMissing())
         {
             LogError("Missing response_type", request);
-            return Invalid(request, OidcConstants.AuthorizeErrors.UnsupportedResponseType, "Missing response_type");
+            return Invalid(request, OidcConstants.AuthorizeErrors.InvalidRequest, "Missing response_type");
         }
 
         // The responseType may come in in an unconventional order.
@@ -407,7 +419,7 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
         return Valid(request);
     }
 
-    private async Task<AuthorizeRequestValidationResult> ValidateScopeAsync(ValidatedAuthorizeRequest request)
+    private async Task<AuthorizeRequestValidationResult> ValidateScopeAndResourceAsync(ValidatedAuthorizeRequest request)
     {
         //////////////////////////////////////////////////////////
         // scope must be present
@@ -426,11 +438,7 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
         }
 
         request.RequestedScopes = scope.FromSpaceSeparatedString().Distinct().ToList();
-
-        if (request.RequestedScopes.Contains(IdentityServerConstants.StandardScopes.OpenId))
-        {
-            request.IsOpenIdRequest = true;
-        }
+        request.IsOpenIdRequest = request.RequestedScopes.Contains(IdentityServerConstants.StandardScopes.OpenId);
 
         //////////////////////////////////////////////////////////
         // check scope vs response_type plausability
@@ -446,18 +454,52 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
             }
         }
 
+
+        //////////////////////////////////////////////////////////
+        // check for resource indicators and valid format
+        //////////////////////////////////////////////////////////
+        var resourceIndicators = request.Raw.GetValues(OidcConstants.AuthorizeRequest.Resource) ?? Enumerable.Empty<string>();
+
+        if (resourceIndicators?.Any(x => x.Length > _options.InputLengthRestrictions.ResourceIndicatorMaxLength) == true)
+        {
+            return Invalid(request, OidcConstants.AuthorizeErrors.InvalidTarget, "Resource indicator maximum length exceeded");
+        }
+
+        if (!resourceIndicators.AreValidResourceIndicatorFormat(_logger))
+        {
+            return Invalid(request, OidcConstants.AuthorizeErrors.InvalidTarget, "Invalid resource indicator format");
+        }
+
+        // we don't want to allow resource indicators when "token" is requested to authorize endpoint
+        if (request.GrantType == GrantType.Implicit && resourceIndicators.Any())
+        {
+            // todo: correct error?
+            return Invalid(request, OidcConstants.AuthorizeErrors.InvalidTarget, "Resource indicators not allowed for response_type 'token'.");
+        }
+
+        request.RequestedResourceIndicators = resourceIndicators;
+
         //////////////////////////////////////////////////////////
         // check if scopes are valid/supported and check for resource scopes
         //////////////////////////////////////////////////////////
         var validatedResources = await _resourceValidator.ValidateRequestedResourcesAsync(new ResourceValidationRequest
         {
             Client = request.Client,
-            Scopes = request.RequestedScopes
+            Scopes = request.RequestedScopes,
+            ResourceIndicators = resourceIndicators,
         });
 
         if (!validatedResources.Succeeded)
         {
-            return Invalid(request, OidcConstants.AuthorizeErrors.InvalidScope, "Invalid scope");
+            if (validatedResources.InvalidResourceIndicators.Any())
+            {
+                return Invalid(request, OidcConstants.AuthorizeErrors.InvalidTarget, "Invalid resource indicator");
+            }
+
+            if (validatedResources.InvalidScopes.Any())
+            {
+                return Invalid(request, OidcConstants.AuthorizeErrors.InvalidScope, "Invalid scope");
+            }
         }
 
         if (validatedResources.Resources.IdentityResources.Any() && !request.IsOpenIdRequest)
@@ -528,15 +570,10 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
         }
         else
         {
-            if (request.GrantType == GrantType.Implicit ||
-                request.GrantType == GrantType.Hybrid)
+            if (request.ResponseType.FromSpaceSeparatedString().Contains(TokenTypes.IdentityToken))
             {
-                // only openid requests require nonce
-                if (request.IsOpenIdRequest)
-                {
-                    LogError("Nonce required for implicit and hybrid flow with openid scope", request);
-                    return Invalid(request, description: "Invalid nonce");
-                }
+                LogError("Nonce required for flow with id_token response type", request);
+                return Invalid(request, description: "Invalid nonce");
             }
         }
 
@@ -548,21 +585,55 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
         if (prompt.IsPresent())
         {
             var prompts = prompt.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (prompts.All(p => Constants.SupportedPromptModes.Contains(p)))
+            if (prompts.All(p => _options.UserInteraction.PromptValuesSupported?.Contains(p) == true))
             {
                 if (prompts.Contains(OidcConstants.PromptModes.None) && prompts.Length > 1)
                 {
                     LogError("prompt contains 'none' and other values. 'none' should be used by itself.", request);
                     return Invalid(request, description: "Invalid prompt");
                 }
+                if (prompts.Contains(OidcConstants.PromptModes.Create) && prompts.Length > 1)
+                {
+                    LogError("prompt contains 'create' and other values. 'create' should be used by itself.", request);
+                    return Invalid(request, description: "Invalid prompt");
+                }
 
-                request.PromptModes = prompts;
+                request.OriginalPromptModes = prompts;
             }
             else
             {
-                _logger.LogDebug("Unsupported prompt mode - ignored: " + prompt);
+                LogError("Unsupported prompt mode", request);
+                return Invalid(request, description: "Unsupported prompt mode");
             }
         }
+
+        var processed_prompt = request.Raw.Get(Constants.ProcessedPrompt);
+        if (processed_prompt.IsPresent())
+        {
+            var prompts = processed_prompt.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (prompts.All(p => _options.UserInteraction.PromptValuesSupported?.Contains(p) == true))
+            {
+                if (prompts.Contains(OidcConstants.PromptModes.None) && prompts.Length > 1)
+                {
+                    LogError("processed_prompt contains 'none' and other values. 'none' should be used by itself.", request);
+                    return Invalid(request, description: "Invalid prompt");
+                }
+                if (prompts.Contains(OidcConstants.PromptModes.Create) && prompts.Length > 1)
+                {
+                    LogError("prompt contains 'create' and other values. 'create' should be used by itself.", request);
+                    return Invalid(request, description: "Invalid prompt");
+                }
+
+                request.ProcessedPromptModes = prompts;
+            }
+            else
+            {
+                LogError("Unsupported processed_prompt mode.", request);
+                return Invalid(request, description: "Invalid prompt");
+            }
+        }
+
+        request.PromptModes = request.OriginalPromptModes.Except(request.ProcessedPromptModes).ToArray();
 
         //////////////////////////////////////////////////////////
         // check ui locales
@@ -666,37 +737,34 @@ internal class AuthorizeRequestValidator : IAuthorizeRequestValidator
         }
 
         //////////////////////////////////////////////////////////
-        // check session cookie
+        // session id
         //////////////////////////////////////////////////////////
-        if (_options.Endpoints.EnableCheckSessionEndpoint)
+        if (request.Subject.IsAuthenticated())
         {
-            if (request.Subject.IsAuthenticated())
+            var sessionId = await _userSession.GetSessionIdAsync();
+            if (sessionId.IsPresent())
             {
-                var sessionId = await _userSession.GetSessionIdAsync();
-                if (sessionId.IsPresent())
-                {
-                    request.SessionId = sessionId;
-                }
-                else
-                {
-                    LogError("Check session endpoint enabled, but SessionId is missing", request);
-                }
+                request.SessionId = sessionId;
             }
             else
             {
-                request.SessionId = ""; // empty string for anonymous users
+                LogError("SessionId is missing", request);
             }
+        }
+        else
+        {
+            request.SessionId = ""; // empty string for anonymous users
         }
 
         return Valid(request);
     }
 
-    private AuthorizeRequestValidationResult Invalid(ValidatedAuthorizeRequest request, string error = OidcConstants.AuthorizeErrors.InvalidRequest, string description = null)
+    private static AuthorizeRequestValidationResult Invalid(ValidatedAuthorizeRequest request, string error = OidcConstants.AuthorizeErrors.InvalidRequest, string description = null)
     {
         return new AuthorizeRequestValidationResult(request, error, description);
     }
 
-    private AuthorizeRequestValidationResult Valid(ValidatedAuthorizeRequest request)
+    private static AuthorizeRequestValidationResult Valid(ValidatedAuthorizeRequest request)
     {
         return new AuthorizeRequestValidationResult(request);
     }

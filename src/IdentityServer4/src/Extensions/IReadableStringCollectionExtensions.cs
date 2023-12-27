@@ -6,7 +6,6 @@ using Microsoft.Extensions.Primitives;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
-using System.Linq;
 
 #pragma warning disable 1591
 
@@ -21,7 +20,13 @@ public static class IReadableStringCollectionExtensions
 
         foreach (var field in collection)
         {
-            nv.Add(field.Key, field.Value.First());
+            foreach (var val in field.Value)
+            {
+                if (!string.IsNullOrWhiteSpace(val))
+                {
+                    nv.Add(field.Key, val);
+                }
+            }
         }
 
         return nv;
@@ -34,7 +39,13 @@ public static class IReadableStringCollectionExtensions
 
         foreach (var field in collection)
         {
-            nv.Add(field.Key, field.Value.First());
+            foreach (var item in field.Value)
+            {
+                if (!string.IsNullOrWhiteSpace(item))
+                {
+                    nv.Add(field.Key, item);
+                }
+            }
         }
 
         return nv;

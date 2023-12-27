@@ -9,7 +9,6 @@ using IdentityServer4;
 using IdentityServer4.Configuration;
 using IdentityServer4.Models;
 using IdentityServer4.Stores;
-using IdentityServer4.Stores.Default;
 using IdentityServer4.Test;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Logging;
@@ -180,6 +179,8 @@ public class JwtRequestAuthorizeTests
                 Name = "api2"
             }
         });
+
+        _mockPipeline.OnPostConfigureServices += svcs => svcs.AddDistributedMemoryCache();
 
         _mockPipeline.Initialize();
     }
@@ -368,6 +369,127 @@ public class JwtRequestAuthorizeTests
 
     [Fact]
     [Trait("Category", Category)]
+    public async Task authorize_should_accept_valid_JWT_request_object_parameters_using_rsa_jwk_and_pushed_authorization()
+    {
+        _mockPipeline.Options.Endpoints.EnablePushedAuthorizationEndpoint = true;
+
+        var requestJwt = CreateRequestJwt(
+            issuer: _client.ClientId,
+            audience: IdentityServerPipeline.BaseUrl,
+            credential: new SigningCredentials(_rsaKey, "RS256"),
+            claims: new[] {
+                new Claim("client_id", _client.ClientId),
+                new Claim("response_type", "id_token"),
+                new Claim("scope", "openid profile"),
+                new Claim("state", "123state"),
+                new Claim("nonce", "123nonce"),
+                new Claim("redirect_uri", "https://client/callback"),
+                new Claim("acr_values", "acr_1 acr_2 tenant:tenant_value idp:idp_value"),
+                new Claim("login_hint", "login_hint_value"),
+                new Claim("display", "popup"),
+                new Claim("ui_locales", "ui_locale_value"),
+                new Claim("foo", "123foo"),
+            });
+
+        var (parResponse, statusCode) = await _mockPipeline.PushAuthorizationRequestAsync(
+            new Dictionary<string, string>()
+            {
+                { "client_id", _client.ClientId },
+                { "request", requestJwt }
+            });
+        statusCode.Should().Be(HttpStatusCode.Created);
+
+        var url = _mockPipeline.CreateAuthorizeUrl(
+            clientId: _client.ClientId,
+            extra: new
+            {
+                request_uri = parResponse.RootElement.GetProperty("request_uri").GetString()
+            });
+        var response = await _mockPipeline.BrowserClient.GetAsync(url);
+
+        _mockPipeline.LoginRequest.Should().NotBeNull();
+        _mockPipeline.LoginRequest.Client.ClientId.Should().Be(_client.ClientId);
+        _mockPipeline.LoginRequest.DisplayMode.Should().Be("popup");
+        _mockPipeline.LoginRequest.UiLocales.Should().Be("ui_locale_value");
+        _mockPipeline.LoginRequest.IdP.Should().Be("idp_value");
+        _mockPipeline.LoginRequest.Tenant.Should().Be("tenant_value");
+        _mockPipeline.LoginRequest.LoginHint.Should().Be("login_hint_value");
+        _mockPipeline.LoginRequest.AcrValues.Should().BeEquivalentTo(new string[] { "acr_2", "acr_1" });
+
+        _mockPipeline.LoginRequest.Parameters.AllKeys.Should().Contain("foo");
+        _mockPipeline.LoginRequest.Parameters["foo"].Should().Be("123foo");
+
+        _mockPipeline.LoginRequest.RequestObjectValues.Count().Should().Be(11);
+        _mockPipeline.LoginRequest.RequestObjectValues.Single(c => c.Type == "foo" && c.Value == "123foo").Should()
+            .NotBeNull();
+    }
+
+    [Theory]
+    [InlineData((Type) null)]
+    [InlineData(typeof(QueryStringAuthorizationParametersMessageStore))]
+    [InlineData(typeof(DistributedCacheAuthorizationParametersMessageStore))]
+    [Trait("Category", Category)]
+    public async Task authorize_should_accept_valid_JWT_request_object_and_allow_some_parameters_in_query(Type storeType)
+    {
+        if (storeType != null)
+        {
+            _mockPipeline.OnPostConfigureServices += services =>
+            {
+                services.AddTransient(typeof(IAuthorizationParametersMessageStore), storeType);
+            };
+            _mockPipeline.Initialize();
+        }
+
+        var requestJwt = CreateRequestJwt(
+            issuer: _client.ClientId,
+            audience: IdentityServerPipeline.BaseUrl,
+            credential: new X509SigningCredentials(TestCert.Load()),
+            claims: new[] {
+                new Claim("client_id", _client.ClientId),
+                new Claim("response_type", "id_token"),
+                new Claim("scope", "openid profile"),
+                new Claim("redirect_uri", "https://client/callback"),
+                new Claim("acr_values", "acr_1 acr_2 tenant:tenant_value idp:idp_value"),
+                new Claim("login_hint", "login_hint_value"),
+                new Claim("display", "popup"),
+                new Claim("ui_locales", "ui_locale_value"),
+                new Claim("foo", "123foo"),
+            });
+
+        var url = _mockPipeline.CreateAuthorizeUrl(
+            clientId: _client.ClientId,
+            nonce: "nonce",
+            state: "state",
+            responseType: "id_token",
+            extra: new
+            {
+                request = requestJwt
+            });
+        var response = await _mockPipeline.BrowserClient.GetAsync(url);
+
+        _mockPipeline.LoginRequest.Should().NotBeNull();
+        _mockPipeline.LoginRequest.Client.ClientId.Should().Be(_client.ClientId);
+        _mockPipeline.LoginRequest.DisplayMode.Should().Be("popup");
+        _mockPipeline.LoginRequest.UiLocales.Should().Be("ui_locale_value");
+        _mockPipeline.LoginRequest.IdP.Should().Be("idp_value");
+        _mockPipeline.LoginRequest.Tenant.Should().Be("tenant_value");
+        _mockPipeline.LoginRequest.LoginHint.Should().Be("login_hint_value");
+        _mockPipeline.LoginRequest.AcrValues.Should().BeEquivalentTo(new string[] { "acr_2", "acr_1" });
+
+        _mockPipeline.LoginRequest.Parameters.AllKeys.Should().Contain("foo");
+        _mockPipeline.LoginRequest.Parameters["foo"].Should().Be("123foo");
+        _mockPipeline.LoginRequest.Parameters["nonce"].Should().Be("nonce");
+        _mockPipeline.LoginRequest.Parameters["state"].Should().Be("state");
+
+        _mockPipeline.LoginRequest.RequestObjectValues.Count().Should().Be(9);
+        _mockPipeline.LoginRequest.RequestObjectValues.Single(c => c.Type == "foo" && c.Value == "123foo").Should()
+            .NotBeNull();
+        _mockPipeline.LoginRequest.RequestObjectValues.SingleOrDefault(c => c.Type == "state").Should().BeNull();
+        _mockPipeline.LoginRequest.RequestObjectValues.SingleOrDefault(c => c.Type == "nonce").Should().BeNull();
+    }
+
+    [Fact]
+    [Trait("Category", Category)]
     public async Task correct_jwt_typ_should_pass_strict_validation()
     {
         _mockPipeline.Options.StrictJarValidation = true;
@@ -447,8 +569,7 @@ public class JwtRequestAuthorizeTests
             {
                 request = requestJwt
             });
-
-        await _mockPipeline.BrowserClient.GetAsync(url);
+        var response = await _mockPipeline.BrowserClient.GetAsync(url);
 
         _mockPipeline.ErrorMessage.Error.Should().Be("invalid_request_object");
         _mockPipeline.LoginRequest.Should().BeNull();
@@ -869,6 +990,8 @@ public class JwtRequestAuthorizeTests
                 new Claim("display", "popup"),
                 new Claim("ui_locales", "ui_locale_value"),
                 new Claim("foo", "123foo"),
+                new Claim("bar", "bar1"),
+                new Claim("bar", "bar2"),
             });
         _mockPipeline.JwtRequestMessageHandler.OnInvoke = req =>
         {
@@ -897,6 +1020,80 @@ public class JwtRequestAuthorizeTests
         _mockPipeline.LoginRequest.AcrValues.Should().BeEquivalentTo(new string[] { "acr_2", "acr_1" });
         _mockPipeline.LoginRequest.Parameters.AllKeys.Should().Contain("foo");
         _mockPipeline.LoginRequest.Parameters["foo"].Should().Be("123foo");
+        _mockPipeline.LoginRequest.RequestObjectValues.Count().Should().Be(13);
+
+        _mockPipeline.JwtRequestMessageHandler.InvokeWasCalled.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData((Type) null)]
+    [InlineData(typeof(QueryStringAuthorizationParametersMessageStore))]
+    [InlineData(typeof(DistributedCacheAuthorizationParametersMessageStore))]
+    [Trait("Category", Category)]
+    public async Task authorize_should_accept_request_uri_and_allow_some_parameters_in_query(Type storeType)
+    {
+        if (storeType != null)
+        {
+            _mockPipeline.OnPostConfigureServices += services =>
+            {
+                services.AddTransient(typeof(IAuthorizationParametersMessageStore), storeType);
+            };
+            _mockPipeline.Initialize();
+        }
+
+        _mockPipeline.Options.Endpoints.EnableJwtRequestUri = true;
+
+        var requestJwt = CreateRequestJwt(
+            issuer: _client.ClientId,
+            audience: IdentityServerPipeline.BaseUrl,
+            credential: new X509SigningCredentials(TestCert.Load()),
+            claims: new[] {
+                new Claim("client_id", _client.ClientId),
+                new Claim("response_type", "id_token"),
+                new Claim("scope", "openid profile"),
+                new Claim("redirect_uri", "https://client/callback"),
+                new Claim("acr_values", "acr_1 acr_2 tenant:tenant_value idp:idp_value"),
+                new Claim("login_hint", "login_hint_value"),
+                new Claim("display", "popup"),
+                new Claim("ui_locales", "ui_locale_value"),
+                new Claim("foo", "123foo"),
+                new Claim("bar", "bar1"),
+                new Claim("bar", "bar2"),
+            });
+        _mockPipeline.JwtRequestMessageHandler.OnInvoke = req =>
+        {
+            req.RequestUri.Should().Be(new Uri("http://client_jwt"));
+            return Task.CompletedTask;
+        };
+        _mockPipeline.JwtRequestMessageHandler.Response.Content = new StringContent(requestJwt);
+
+
+        var url = _mockPipeline.CreateAuthorizeUrl(
+            clientId: _client.ClientId,
+            state: "state",
+            nonce: "nonce",
+            responseType: "id_token",
+            extra: new
+            {
+                request_uri = "http://client_jwt"
+            });
+        var response = await _mockPipeline.BrowserClient.GetAsync(url);
+
+        _mockPipeline.LoginRequest.Should().NotBeNull();
+        _mockPipeline.LoginRequest.Client.ClientId.Should().Be(_client.ClientId);
+        _mockPipeline.LoginRequest.DisplayMode.Should().Be("popup");
+        _mockPipeline.LoginRequest.UiLocales.Should().Be("ui_locale_value");
+        _mockPipeline.LoginRequest.IdP.Should().Be("idp_value");
+        _mockPipeline.LoginRequest.Tenant.Should().Be("tenant_value");
+        _mockPipeline.LoginRequest.LoginHint.Should().Be("login_hint_value");
+        _mockPipeline.LoginRequest.AcrValues.Should().BeEquivalentTo(new string[] { "acr_2", "acr_1" });
+        _mockPipeline.LoginRequest.Parameters.AllKeys.Should().Contain("foo");
+        _mockPipeline.LoginRequest.Parameters["foo"].Should().Be("123foo");
+        _mockPipeline.LoginRequest.Parameters["nonce"].Should().Be("nonce");
+        _mockPipeline.LoginRequest.Parameters["state"].Should().Be("state");
+        _mockPipeline.LoginRequest.RequestObjectValues.Count().Should().Be(11);
+        _mockPipeline.LoginRequest.RequestObjectValues.Any(x => x.Type == "state").Should().BeFalse();
+        _mockPipeline.LoginRequest.RequestObjectValues.Any(x => x.Type == "nonce").Should().BeFalse();
 
         _mockPipeline.JwtRequestMessageHandler.InvokeWasCalled.Should().BeTrue();
     }
@@ -1108,5 +1305,113 @@ public class JwtRequestAuthorizeTests
         _mockPipeline.LoginRequest.Should().BeNull();
 
         _mockPipeline.JwtRequestMessageHandler.InvokeWasCalled.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData((Type) null)]
+    [InlineData(typeof(QueryStringAuthorizationParametersMessageStore))]
+    [InlineData(typeof(DistributedCacheAuthorizationParametersMessageStore))]
+    [Trait("Category", Category)]
+    public async Task prompt_login_should_allow_user_to_login_and_complete_authorization(Type storeType)
+    {
+        if (storeType != null)
+        {
+            _mockPipeline.OnPostConfigureServices += services =>
+            {
+                services.AddTransient(typeof(IAuthorizationParametersMessageStore), storeType);
+            };
+            _mockPipeline.Initialize();
+        }
+
+        await _mockPipeline.LoginAsync("bob");
+
+        var requestJwt = CreateRequestJwt(
+            issuer: _client.ClientId,
+            audience: IdentityServerPipeline.BaseUrl,
+            credential: new X509SigningCredentials(TestCert.Load()),
+            claims: new[] {
+                new Claim("client_id", _client.ClientId),
+                new Claim("response_type", "id_token"),
+                new Claim("scope", "openid profile"),
+                new Claim("redirect_uri", "https://client/callback"),
+                new Claim("prompt", "login"),
+            });
+
+        var url = _mockPipeline.CreateAuthorizeUrl(
+            clientId: _client.ClientId,
+            responseType: "id_token",
+            state: "state123",
+            nonce: "nonce123",
+            extra: new
+            {
+                request = requestJwt
+            });
+        var response = await _mockPipeline.BrowserClient.GetAsync(url);
+
+        // this simulates the login page returning to the returnUrl which is the authorize callback page
+        _mockPipeline.BrowserClient.AllowAutoRedirect = false;
+        response = await _mockPipeline.BrowserClient.GetAsync(IdentityServerPipeline.BaseUrl + _mockPipeline.LoginReturnUrl);
+        response.Should().Be302Found();
+
+        response.Headers.Location.ToString()
+            .Should().StartWith("https://client/callback")
+            .And.Contain("id_token=")
+            .And.Contain("state=state123");
+    }
+
+    [Theory]
+    [InlineData((Type) null)]
+    [InlineData(typeof(QueryStringAuthorizationParametersMessageStore))]
+    [InlineData(typeof(DistributedCacheAuthorizationParametersMessageStore))]
+    [Trait("Category", Category)]
+    public async Task prompt_login_should_allow_user_to_consent_and_complete_authorization(Type storeType)
+    {
+        if (storeType != null)
+        {
+            _mockPipeline.OnPostConfigureServices += services =>
+            {
+                services.AddTransient(typeof(IAuthorizationParametersMessageStore), storeType);
+            };
+            _mockPipeline.Initialize();
+        }
+
+        _client.RequireConsent = true;
+
+        await _mockPipeline.LoginAsync("bob");
+
+        var requestJwt = CreateRequestJwt(
+            issuer: _client.ClientId,
+            audience: IdentityServerPipeline.BaseUrl,
+            credential: new X509SigningCredentials(TestCert.Load()),
+            claims: new[] {
+                new Claim("client_id", _client.ClientId),
+                new Claim("response_type", "id_token"),
+                new Claim("scope", "openid profile"),
+                new Claim("redirect_uri", "https://client/callback"),
+            });
+
+        var url = _mockPipeline.CreateAuthorizeUrl(
+            clientId: _client.ClientId,
+            responseType: "id_token",
+            state: "state123",
+            nonce: "nonce123",
+            extra: new
+            {
+                request = requestJwt
+            });
+
+        _mockPipeline.ConsentResponse = new ConsentResponse()
+        {
+            ScopesValuesConsented = new string[] { "openid", "profile" }
+        };
+        _mockPipeline.BrowserClient.StopRedirectingAfter = 2;
+
+        var response = await _mockPipeline.BrowserClient.GetAsync(url);
+
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location.ToString().Should().StartWith("https://client/callback");
+        response.Headers.Location.ToString().Should().Contain("id_token=");
+        response.Headers.Location.ToString().Should().Contain("state=state123");
     }
 }

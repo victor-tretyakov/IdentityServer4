@@ -27,7 +27,7 @@ public class LocalApiAuthenticationOptions : AuthenticationSchemeOptions
     /// </summary>
     public new LocalApiAuthenticationEvents Events
     {
-        get { return (LocalApiAuthenticationEvents)base.Events; }
+        get { return (LocalApiAuthenticationEvents) base.Events!; }
         set { base.Events = value; }
     }
 }

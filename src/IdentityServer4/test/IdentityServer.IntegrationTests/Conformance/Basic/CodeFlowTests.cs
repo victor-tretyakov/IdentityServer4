@@ -34,9 +34,9 @@ public class CodeFlowTests
             Enabled = true,
             ClientId = "code_pipeline.Client",
             ClientSecrets = new List<Secret>
-                {
-                    new Secret("secret".Sha512())
-                },
+            {
+                new Secret("secret".Sha512())
+            },
 
             AllowedGrantTypes = GrantTypes.Code,
             AllowedScopes = { "openid" },
@@ -44,10 +44,10 @@ public class CodeFlowTests
             RequireConsent = false,
             RequirePkce = false,
             RedirectUris = new List<string>
-                {
-                    "https://code_pipeline.Client/callback",
-                    "https://code_pipeline.Client/callback?foo=bar&baz=quux"
-                }
+            {
+                "https://code_pipeline.Client/callback",
+                "https://code_pipeline.Client/callback?foo=bar&baz=quux"
+            }
         });
 
         _pipeline.Users.Add(new TestUser
@@ -55,11 +55,11 @@ public class CodeFlowTests
             SubjectId = "bob",
             Username = "bob",
             Claims = new Claim[]
-               {
-                        new Claim("name", "Bob Loblaw"),
-                        new Claim("email", "bob@loblaw.com"),
-                        new Claim("role", "Attorney")
-               }
+            {
+                new Claim("name", "Bob Loblaw"),
+                new Claim("email", "bob@loblaw.com"),
+                new Claim("role", "Attorney")
+            }
         });
 
         _pipeline.Initialize();
@@ -75,11 +75,11 @@ public class CodeFlowTests
 
         _pipeline.BrowserClient.AllowAutoRedirect = false;
         var url = _pipeline.CreateAuthorizeUrl(
-                       clientId: "code_pipeline.Client",
-                       responseType: "code",
-                       scope: "openid",
-                       redirectUri: "https://code_pipeline.Client/callback?foo=bar&baz=quux",
-                       nonce: nonce);
+            clientId: "code_pipeline.Client",
+            responseType: "code",
+            scope: "openid",
+            redirectUri: "https://code_pipeline.Client/callback?foo=bar&baz=quux",
+            nonce: nonce);
         var response = await _pipeline.BrowserClient.GetAsync(url);
 
         var authorization = _pipeline.ParseAuthorizationResponseUrl(response.Headers.Location.ToString());
@@ -113,22 +113,26 @@ public class CodeFlowTests
         s_hash.Should().BeNull();
     }
 
-    [Fact]
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
     [Trait("Category", Category)]
-    public async Task State_should_result_in_shash()
+    public async Task StateHash_should_be_emitted_based_on_options(bool emitStateHash)
     {
+        _pipeline.Options.EmitStateHash = emitStateHash;
+
         await _pipeline.LoginAsync("bob");
 
         var nonce = Guid.NewGuid().ToString();
 
         _pipeline.BrowserClient.AllowAutoRedirect = false;
         var url = _pipeline.CreateAuthorizeUrl(
-                       clientId: "code_pipeline.Client",
-                       responseType: "code",
-                       scope: "openid",
-                       redirectUri: "https://code_pipeline.Client/callback?foo=bar&baz=quux",
-                       state: "state",
-                       nonce: nonce);
+            clientId: "code_pipeline.Client",
+            responseType: "code",
+            scope: "openid",
+            redirectUri: "https://code_pipeline.Client/callback?foo=bar&baz=quux",
+            state: "state",
+            nonce: nonce);
         var response = await _pipeline.BrowserClient.GetAsync(url);
 
         var authorization = _pipeline.ParseAuthorizationResponseUrl(response.Headers.Location.ToString());
@@ -159,7 +163,15 @@ public class CodeFlowTests
         var token = new JwtSecurityToken(tokenResult.IdentityToken);
 
         var s_hash = token.Claims.FirstOrDefault(c => c.Type == "s_hash");
-        s_hash.Should().NotBeNull();
-        s_hash.Value.Should().Be(CryptoHelper.CreateHashClaimValue("state", "RS256"));
+
+        if (emitStateHash)
+        {
+            s_hash.Should().NotBeNull();
+            s_hash.Value.Should().Be(CryptoHelper.CreateHashClaimValue("state", "RS256"));
+        }
+        else
+        {
+            s_hash.Should().BeNull();
+        }
     }
 }

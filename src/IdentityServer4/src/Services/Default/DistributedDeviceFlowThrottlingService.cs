@@ -2,79 +2,87 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System;
-using System.Threading.Tasks;
 using IdentityServer4.Configuration;
 using IdentityServer4.Models;
+using IdentityServer4.Stores;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Distributed;
+using System;
+using System.Threading.Tasks;
 
-namespace IdentityServer4.Services
+namespace IdentityServer4.Services;
+
+/// <summary>
+/// The default device flow throttling service using IDistributedCache.
+/// </summary>
+/// <seealso cref="IDeviceFlowThrottlingService" />
+public class DistributedDeviceFlowThrottlingService : IDeviceFlowThrottlingService
 {
+    private readonly IDistributedCache _cache;
+    private readonly IClientStore _clientStore;
+    private readonly ISystemClock _clock;
+    private readonly IdentityServerOptions _options;
+
+    private const string KeyPrefix = "devicecode_";
+
     /// <summary>
-    /// The default device flow throttling service using IDistributedCache.
+    /// Initializes a new instance of the <see cref="DistributedDeviceFlowThrottlingService"/> class.
     /// </summary>
-    /// <seealso cref="IdentityServer4.Services.IDeviceFlowThrottlingService" />
-    public class DistributedDeviceFlowThrottlingService : IDeviceFlowThrottlingService
+    /// <param name="cache">The cache.</param>
+    /// <param name="clientStore"></param>
+    /// <param name="clock">The clock.</param>
+    /// <param name="options">The options.</param>
+    public DistributedDeviceFlowThrottlingService(
+        IDistributedCache cache,
+        IClientStore clientStore,
+        ISystemClock clock,
+        IdentityServerOptions options)
     {
-        private readonly IDistributedCache _cache;
-        private readonly ISystemClock _clock;
-        private readonly IdentityServerOptions _options;
+        _cache = cache;
+        _clientStore = clientStore;
+        _clock = clock;
+        _options = options;
+    }
 
-        private const string KeyPrefix = "devicecode_";
+    /// <summary>
+    /// Decides if the requesting client and device code needs to slow down.
+    /// </summary>
+    /// <param name="deviceCode">The device code.</param>
+    /// <param name="details">The device code details.</param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException">deviceCode</exception>
+    public async Task<bool> ShouldSlowDown(string deviceCode, DeviceCode details)
+    {
+        if (deviceCode == null) throw new ArgumentNullException(nameof(deviceCode));
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DistributedDeviceFlowThrottlingService"/> class.
-        /// </summary>
-        /// <param name="cache">The cache.</param>
-        /// <param name="clock">The clock.</param>
-        /// <param name="options">The options.</param>
-        public DistributedDeviceFlowThrottlingService(
-            IDistributedCache cache,
-            ISystemClock clock,
-            IdentityServerOptions options)
+        var key = KeyPrefix + deviceCode;
+        var options = new DistributedCacheEntryOptions { AbsoluteExpiration = _clock.UtcNow.AddSeconds(details.Lifetime) };
+
+        var lastSeenAsString = await _cache.GetStringAsync(key);
+
+        // record new
+        if (lastSeenAsString == null)
         {
-            _cache = cache;
-            _clock = clock;
-            _options = options;
-        }
-
-        /// <summary>
-        /// Decides if the requesting client and device code needs to slow down.
-        /// </summary>
-        /// <param name="deviceCode">The device code.</param>
-        /// <param name="details">The device code details.</param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentNullException">deviceCode</exception>
-        public async Task<bool> ShouldSlowDown(string deviceCode, DeviceCode details)
-        {
-            if (deviceCode == null) throw new ArgumentNullException(nameof(deviceCode));
-            
-            var key = KeyPrefix + deviceCode;
-            var options = new DistributedCacheEntryOptions {AbsoluteExpiration = _clock.UtcNow.AddSeconds(details.Lifetime)};
-
-            var lastSeenAsString = await _cache.GetStringAsync(key);
-
-            // record new
-            if (lastSeenAsString == null)
-            {
-                await _cache.SetStringAsync(key, _clock.UtcNow.ToString("O"), options);
-                return false;
-            }
-
-            // check interval
-            if (DateTime.TryParse(lastSeenAsString, out var lastSeen))
-            {
-                if (_clock.UtcNow < lastSeen.AddSeconds(_options.DeviceFlow.Interval))
-                {
-                    await _cache.SetStringAsync(key, _clock.UtcNow.ToString("O"), options);
-                    return true;
-                }
-            }
-
-            // store current and continue
             await _cache.SetStringAsync(key, _clock.UtcNow.ToString("O"), options);
             return false;
         }
+
+        // check interval
+        if (DateTime.TryParse(lastSeenAsString, out var lastSeen))
+        {
+            lastSeen = lastSeen.ToUniversalTime();
+
+            var client = await _clientStore.FindEnabledClientByIdAsync(details.ClientId);
+            var interval = client?.PollingInterval ?? _options.DeviceFlow.Interval;
+            if (_clock.UtcNow.UtcDateTime < lastSeen.AddSeconds(interval))
+            {
+                await _cache.SetStringAsync(key, _clock.UtcNow.ToString("O"), options);
+                return true;
+            }
+        }
+
+        // store current and continue
+        await _cache.SetStringAsync(key, _clock.UtcNow.ToString("O"), options);
+        return false;
     }
 }

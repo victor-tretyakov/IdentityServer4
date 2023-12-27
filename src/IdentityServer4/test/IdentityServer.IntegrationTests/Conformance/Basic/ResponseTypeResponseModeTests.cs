@@ -3,6 +3,7 @@
 
 
 using FluentAssertions;
+using IdentityModel;
 using IdentityServer.IntegrationTests.Common;
 using IdentityServer4.Extensions;
 using IdentityServer4.Models;
@@ -31,9 +32,9 @@ public class ResponseTypeResponseModeTests
             Enabled = true,
             ClientId = "code_client",
             ClientSecrets = new List<Secret>
-                {
-                    new Secret("secret".Sha512())
-                },
+            {
+                new Secret("secret".Sha512())
+            },
 
             AllowedGrantTypes = GrantTypes.Code,
             AllowedScopes = { "openid" },
@@ -41,9 +42,9 @@ public class ResponseTypeResponseModeTests
             RequireConsent = false,
             RequirePkce = false,
             RedirectUris = new List<string>
-                {
-                    "https://code_client/callback"
-                }
+            {
+                "https://code_client/callback"
+            }
         });
 
         _mockPipeline.IdentityScopes.Add(new IdentityResources.OpenId());
@@ -53,11 +54,11 @@ public class ResponseTypeResponseModeTests
             SubjectId = "bob",
             Username = "bob",
             Claims = new Claim[]
-                {
-                        new Claim("name", "Bob Loblaw"),
-                        new Claim("email", "bob@loblaw.com"),
-                        new Claim("role", "Attorney")
-                }
+            {
+                new Claim("name", "Bob Loblaw"),
+                new Claim("email", "bob@loblaw.com"),
+                new Claim("role", "Attorney")
+            }
         });
     }
 
@@ -74,12 +75,12 @@ public class ResponseTypeResponseModeTests
         var nonce = Guid.NewGuid().ToString();
 
         var url = _mockPipeline.CreateAuthorizeUrl(
-                       clientId: "code_client",
-                       responseType: "code",
-                       scope: "openid",
-                       redirectUri: "https://code_client/callback",
-                       state: state,
-                       nonce: nonce);
+            clientId: "code_client",
+            responseType: "code",
+            scope: "openid",
+            redirectUri: "https://code_client/callback",
+            state: state,
+            nonce: nonce);
         var response = await _mockPipeline.BrowserClient.GetAsync(url);
         response.StatusCode.Should().Be(HttpStatusCode.Found);
 
@@ -112,6 +113,6 @@ public class ResponseTypeResponseModeTests
         _mockPipeline.BrowserClient.AllowAutoRedirect = true;
         var response = await _mockPipeline.BrowserClient.GetAsync(url);
 
-        _mockPipeline.ErrorMessage.Error.Should().Be("unsupported_response_type");
+        _mockPipeline.ErrorMessage.Error.Should().Be(OidcConstants.AuthorizeErrors.InvalidRequest);
     }
 }

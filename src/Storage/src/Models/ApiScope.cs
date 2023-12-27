@@ -16,7 +16,7 @@ namespace IdentityServer4.Models;
 public class ApiScope : Resource
 {
     private string DebuggerDisplay => Name ?? $"{{{typeof(ApiScope)}}}";
-    
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ApiScope"/> class.
     /// </summary>
@@ -60,7 +60,7 @@ public class ApiScope : Resource
     /// <param name="displayName">The display name.</param>
     /// <param name="userClaims">List of associated user claims that should be included when this resource is requested.</param>
     /// <exception cref="System.ArgumentNullException">name</exception>
-    public ApiScope(string name, string displayName, IEnumerable<string> userClaims)
+    public ApiScope(string name, string displayName, IEnumerable<string>? userClaims)
     {
         if (name.IsMissing()) throw new ArgumentNullException(nameof(name));
 
@@ -69,7 +69,7 @@ public class ApiScope : Resource
 
         if (!userClaims.IsNullOrEmpty())
         {
-            foreach (var type in userClaims)
+            foreach (var type in userClaims!)
             {
                 UserClaims.Add(type);
             }

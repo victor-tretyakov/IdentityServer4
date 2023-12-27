@@ -3,17 +3,17 @@
 
 
 using IdentityModel;
+using IdentityServer4.Configuration;
 using IdentityServer4.Extensions;
 using IdentityServer4.Models;
-using Microsoft.AspNetCore.Http;
+using IdentityServer4.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
-using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
-using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 
 namespace IdentityServer4.Validation;
@@ -24,30 +24,23 @@ namespace IdentityServer4.Validation;
 public class JwtRequestValidator : IJwtRequestValidator
 {
     private readonly string _audienceUri;
-    private readonly IHttpContextAccessor _httpContextAccessor;
 
     /// <summary>
     /// JWT handler
     /// </summary>
-    protected JwtSecurityTokenHandler Handler = new()
-    {
-        MapInboundClaims = false
-    };
+    protected JsonWebTokenHandler Handler;
 
     /// <summary>
     /// The audience URI to use
     /// </summary>
-    protected string AudienceUri
+    protected async Task<string> GetAudienceUri()
     {
-        get
+        if (_audienceUri.IsPresent())
         {
-            if (_audienceUri.IsPresent())
-            {
-                return _audienceUri;
-            }
-
-            return _httpContextAccessor.HttpContext.GetIdentityServerIssuerUri();
+            return _audienceUri;
         }
+
+        return await IssuerNameService.GetCurrentAsync();
     }
 
     /// <summary>
@@ -56,19 +49,29 @@ public class JwtRequestValidator : IJwtRequestValidator
     protected readonly ILogger Logger;
 
     /// <summary>
-    /// The optione
+    /// The options
     /// </summary>
     protected readonly IdentityServerOptions Options;
 
     /// <summary>
+    /// The issuer name service
+    /// </summary>
+    protected readonly IIssuerNameService IssuerNameService;
+
+    /// <summary>
     /// Instantiates an instance of private_key_jwt secret validator
     /// </summary>
-    public JwtRequestValidator(IHttpContextAccessor contextAccessor, IdentityServerOptions options, ILogger<JwtRequestValidator> logger)
+    public JwtRequestValidator(IdentityServerOptions options, IIssuerNameService issuerNameService,
+        ILogger<JwtRequestValidator> logger)
     {
-        _httpContextAccessor = contextAccessor;
-
         Options = options;
+        IssuerNameService = issuerNameService;
         Logger = logger;
+
+        Handler = new JsonWebTokenHandler
+        {
+            MaximumTokenSizeInBytes = options.InputLengthRestrictions.Jwt
+        };
     }
 
     /// <summary>
@@ -77,26 +80,24 @@ public class JwtRequestValidator : IJwtRequestValidator
     internal JwtRequestValidator(string audience, ILogger<JwtRequestValidator> logger)
     {
         _audienceUri = audience;
+
         Logger = logger;
+        Handler = new JsonWebTokenHandler();
     }
 
-    /// <summary>
-    /// Validates a JWT request object
-    /// </summary>
-    /// <param name="client">The client</param>
-    /// <param name="jwtTokenString">The JWT</param>
-    /// <returns></returns>
-    public virtual async Task<JwtRequestValidationResult> ValidateAsync(Client client, string jwtTokenString)
+    /// <inheritdoc/>
+    public virtual async Task<JwtRequestValidationResult> ValidateAsync(JwtRequestValidationContext context)
     {
-        if (client == null) throw new ArgumentNullException(nameof(client));
-        if (string.IsNullOrWhiteSpace(jwtTokenString)) throw new ArgumentNullException(nameof(jwtTokenString));
+        if (context == null) throw new ArgumentNullException(nameof(context));
+        if (context.Client == null) throw new ArgumentNullException(nameof(context.Client));
+        if (string.IsNullOrWhiteSpace(context.JwtTokenString)) throw new ArgumentNullException(nameof(context.JwtTokenString));
 
         var fail = new JwtRequestValidationResult { IsError = true };
 
         List<SecurityKey> trustedKeys;
         try
         {
-            trustedKeys = await GetKeysAsync(client);
+            trustedKeys = await GetKeysAsync(context.Client);
         }
         catch (Exception e)
         {
@@ -110,10 +111,10 @@ public class JwtRequestValidator : IJwtRequestValidator
             return fail;
         }
 
-        JwtSecurityToken jwtSecurityToken;
+        JsonWebToken jwtSecurityToken;
         try
         {
-            jwtSecurityToken = await ValidateJwtAsync(jwtTokenString, trustedKeys, client);
+            jwtSecurityToken = await ValidateJwtAsync(context, trustedKeys);
         }
         catch (Exception e)
         {
@@ -121,14 +122,14 @@ public class JwtRequestValidator : IJwtRequestValidator
             return fail;
         }
 
-        if (jwtSecurityToken.Payload.ContainsKey(OidcConstants.AuthorizeRequest.Request) ||
-            jwtSecurityToken.Payload.ContainsKey(OidcConstants.AuthorizeRequest.RequestUri))
+        if (jwtSecurityToken.TryGetPayloadValue<string>(OidcConstants.AuthorizeRequest.Request, out _) ||
+            jwtSecurityToken.TryGetPayloadValue<string>(OidcConstants.AuthorizeRequest.RequestUri, out _))
         {
             Logger.LogError("JWT payload must not contain request or request_uri");
             return fail;
         }
 
-        var payload = await ProcessPayloadAsync(jwtSecurityToken);
+        var payload = await ProcessPayloadAsync(context, jwtSecurityToken);
 
         var result = new JwtRequestValidationResult
         {
@@ -153,49 +154,55 @@ public class JwtRequestValidator : IJwtRequestValidator
     /// <summary>
     /// Validates the JWT token
     /// </summary>
-    /// <param name="jwtTokenString">JWT as a string</param>
-    /// <param name="keys">The keys</param>
-    /// <param name="client">The client</param>
-    /// <returns></returns>
-    protected virtual Task<JwtSecurityToken> ValidateJwtAsync(string jwtTokenString, IEnumerable<SecurityKey> keys, Client client)
+    protected virtual async Task<JsonWebToken> ValidateJwtAsync(JwtRequestValidationContext context, IEnumerable<SecurityKey> keys)
     {
         var tokenValidationParameters = new TokenValidationParameters
         {
             IssuerSigningKeys = keys,
             ValidateIssuerSigningKey = true,
 
-            ValidIssuer = client.ClientId,
+            ValidIssuer = context.Client.ClientId,
             ValidateIssuer = true,
 
-            ValidAudience = AudienceUri,
+            ValidAudience = await GetAudienceUri(),
             ValidateAudience = true,
 
             RequireSignedTokens = true,
             RequireExpirationTime = true
         };
 
-        if (Options.StrictJarValidation)
+        var strictJarValidation = context.StrictJarValidation ?? Options.StrictJarValidation;
+        if (strictJarValidation)
         {
             tokenValidationParameters.ValidTypes = new[] { JwtClaimTypes.JwtTypes.AuthorizationRequest };
         }
 
-        Handler.ValidateToken(jwtTokenString, tokenValidationParameters, out var token);
+        var result = await Handler.ValidateTokenAsync(context.JwtTokenString, tokenValidationParameters);
+        if (!result.IsValid)
+        {
+            throw result.Exception;
+        }
 
-        return Task.FromResult((JwtSecurityToken) token);
+        return (JsonWebToken) result.SecurityToken;
     }
 
     /// <summary>
     /// Processes the JWT contents
     /// </summary>
+    /// <param name="context"></param>
     /// <param name="token">The JWT token</param>
     /// <returns></returns>
-    protected virtual Task<List<Claim>> ProcessPayloadAsync(JwtSecurityToken token)
+    protected virtual Task<List<Claim>> ProcessPayloadAsync(JwtRequestValidationContext context, JsonWebToken token)
     {
         // filter JWT validation values
         var filter = Constants.Filters.JwtRequestClaimTypesFilter.ToList();
+        if (context.IncludeJti)
+        {
+            // don't filter out the jti claim
+            filter.Remove(JwtClaimTypes.JwtId);
+        }
 
         var filtered = token.Claims.Where(claim => !filter.Contains(claim.Type));
-
         return Task.FromResult(filtered.ToList());
     }
 }

@@ -19,7 +19,7 @@ public class TokenCreationRequest
     /// <value>
     /// The subject.
     /// </value>
-    public ClaimsPrincipal Subject { get; set; }
+    public ClaimsPrincipal? Subject { get; set; }
 
     /// <summary>
     /// Gets or sets the validated resources.
@@ -27,7 +27,7 @@ public class TokenCreationRequest
     /// <value>
     /// The resources.
     /// </value>
-    public ResourceValidationResult ValidatedResources { get; set; }
+    public ResourceValidationResult ValidatedResources { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the validated request.
@@ -35,7 +35,7 @@ public class TokenCreationRequest
     /// <value>
     /// The validated request.
     /// </value>
-    public ValidatedRequest ValidatedRequest { get; set; }
+    public ValidatedRequest ValidatedRequest { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets a value indicating whether [include all identity claims].
@@ -51,7 +51,7 @@ public class TokenCreationRequest
     /// <value>
     /// The access token to hash.
     /// </value>
-    public string AccessTokenToHash { get; set; }
+    public string? AccessTokenToHash { get; set; }
 
     /// <summary>
     /// Gets or sets the authorization code to hash.
@@ -59,7 +59,7 @@ public class TokenCreationRequest
     /// <value>
     /// The authorization code to hash.
     /// </value>
-    public string AuthorizationCodeToHash { get; set; }
+    public string? AuthorizationCodeToHash { get; set; }
 
     /// <summary>
     /// Gets or sets pre-hashed state
@@ -67,7 +67,7 @@ public class TokenCreationRequest
     /// <value>
     /// The pre-hashed state
     /// </value>
-    public string StateHash { get; set; }
+    public string? StateHash { get; set; }
 
     /// <summary>
     /// Gets or sets the nonce.
@@ -75,7 +75,7 @@ public class TokenCreationRequest
     /// <value>
     /// The nonce.
     /// </value>
-    public string Nonce { get; set; }
+    public string? Nonce { get; set; }
 
     /// <summary>
     /// Gets the description the user assigned to the device being authorized.
@@ -83,7 +83,7 @@ public class TokenCreationRequest
     /// <value>
     /// The description.
     /// </value>
-    public string Description { get; set; }
+    public string? Description { get; set; }
 
     /// <summary>
     /// Called to validate the <see cref="TokenCreationRequest"/> before it is processed.

@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
+using IdentityServer4.Configuration;
 using IdentityServer4.ResponseHandling;
 using System.Collections.Specialized;
 
@@ -9,7 +10,7 @@ namespace IdentityServer4.Extensions;
 
 internal static class AuthorizeResponseExtensions
 {
-    public static NameValueCollection ToNameValueCollection(this AuthorizeResponse response)
+    public static NameValueCollection ToNameValueCollection(this AuthorizeResponse response, IdentityServerOptions options)
     {
         var collection = new NameValueCollection();
 
@@ -53,10 +54,18 @@ internal static class AuthorizeResponseExtensions
         {
             collection.Add("state", response.State);
         }
-        
+
         if (response.SessionState.IsPresent())
         {
             collection.Add("session_state", response.SessionState);
+        }
+
+        if (response.Issuer.IsPresent())
+        {
+            if (options.EmitIssuerIdentificationResponseParameter)
+            {
+                collection.Add("iss", response.Issuer);
+            }
         }
 
         return collection;

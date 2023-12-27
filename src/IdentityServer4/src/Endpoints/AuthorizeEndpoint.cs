@@ -7,6 +7,7 @@ using IdentityServer4.Extensions;
 using IdentityServer4.Hosting;
 using IdentityServer4.ResponseHandling;
 using IdentityServer4.Services;
+using IdentityServer4.Stores;
 using IdentityServer4.Validation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -19,14 +20,16 @@ namespace IdentityServer4.Endpoints;
 internal class AuthorizeEndpoint : AuthorizeEndpointBase
 {
     public AuthorizeEndpoint(
-       IEventService events,
-       ILogger<AuthorizeEndpoint> logger,
-       IdentityServerOptions options,
-       IAuthorizeRequestValidator validator,
-       IAuthorizeInteractionResponseGenerator interactionGenerator,
-       IAuthorizeResponseGenerator authorizeResponseGenerator,
-       IUserSession userSession)
-        : base(events, logger, options, validator, interactionGenerator, authorizeResponseGenerator, userSession)
+        IEventService events,
+        ILogger<AuthorizeEndpoint> logger,
+        IdentityServerOptions options,
+        IAuthorizeRequestValidator validator,
+        IAuthorizeInteractionResponseGenerator interactionGenerator,
+        IAuthorizeResponseGenerator authorizeResponseGenerator,
+        IUserSession userSession,
+        IConsentMessageStore consentResponseStore,
+        IAuthorizationParametersMessageStore authorizationParametersMessageStore = null)
+        : base(events, logger, options, validator, interactionGenerator, authorizeResponseGenerator, userSession, consentResponseStore, authorizationParametersMessageStore)
     {
     }
 
@@ -55,7 +58,7 @@ internal class AuthorizeEndpoint : AuthorizeEndpointBase
         }
 
         var user = await UserSession.GetUserAsync();
-        var result = await ProcessAuthorizeRequestAsync(values, user, null);
+        var result = await ProcessAuthorizeRequestAsync(values, user);
 
         Logger.LogTrace("End authorize request. result type: {0}", result?.GetType().ToString() ?? "-none-");
 

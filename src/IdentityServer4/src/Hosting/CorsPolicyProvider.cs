@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -19,19 +20,19 @@ internal class CorsPolicyProvider : ICorsPolicyProvider
 {
     private readonly ILogger _logger;
     private readonly ICorsPolicyProvider _inner;
+    private readonly IServiceProvider _provider;
     private readonly IdentityServerOptions _options;
-    private readonly IHttpContextAccessor _httpContext;
 
     public CorsPolicyProvider(
         ILogger<CorsPolicyProvider> logger,
         Decorator<ICorsPolicyProvider> inner,
         IdentityServerOptions options,
-        IHttpContextAccessor httpContext)
+        IServiceProvider provider)
     {
         _logger = logger;
         _inner = inner.Instance;
         _options = options;
-        _httpContext = httpContext;
+        _provider = provider;
     }
 
     public Task<CorsPolicy> GetPolicyAsync(HttpContext context, string policyName)
@@ -58,7 +59,7 @@ internal class CorsPolicyProvider : ICorsPolicyProvider
 
                 // manually resolving this from DI because this: 
                 // https://github.com/aspnet/CORS/issues/105
-                var corsPolicyService = _httpContext.HttpContext.RequestServices.GetRequiredService<ICorsPolicyService>();
+                var corsPolicyService = _provider.GetRequiredService<ICorsPolicyService>();
 
                 if (await corsPolicyService.IsOriginAllowedAsync(origin))
                 {
@@ -72,7 +73,9 @@ internal class CorsPolicyProvider : ICorsPolicyProvider
             }
             else
             {
-                _logger.LogDebug("CORS request made for path: {path} from origin: {origin} but was ignored because path was not for an allowed IdentityServer CORS endpoint", path, origin);
+                _logger.LogDebug("IdentityServer CorsPolicyService didn't handle CORS request made for path: {path} from origin: {origin} " +
+                    "because it is not for an IdentityServer CORS endpoint. To allow CORS requests to non IdentityServer endpoints, please " +
+                    "set up your own Cors policy for your application by calling app.UseCors(\"MyPolicy\") in the pipeline setup.", path, origin);
             }
         }
 

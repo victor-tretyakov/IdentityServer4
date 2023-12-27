@@ -44,7 +44,7 @@ public class InMemoryClientStore : IClientStore
             from client in _clients
             where client.ClientId == clientId
             select client;
-        
+
         return Task.FromResult(query.SingleOrDefault());
     }
 }

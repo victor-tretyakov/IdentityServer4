@@ -2,21 +2,17 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Linq;
-using static IdentityServer4.IdentityServerConstants;
 
-namespace IdentityServerHost
+namespace IdentityServerHost;
+
+[Route("localApi")]
+public class LocalApiController : ControllerBase
 {
-    [Route("localApi")]
-    [Authorize(LocalApi.PolicyName)]
-    public class LocalApiController : ControllerBase
+    public IActionResult Get()
     {
-        public IActionResult Get()
-        {
-            var claims = from c in User.Claims select new { c.Type, c.Value };
-            return new JsonResult(claims);
-        }
+        var claims = from c in User.Claims select new { c.Type, c.Value };
+        return new JsonResult(claims);
     }
 }

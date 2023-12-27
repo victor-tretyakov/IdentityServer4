@@ -11,6 +11,7 @@ using IdentityServer4.Validation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -85,25 +86,20 @@ public class TokenResponseGenerator : ITokenResponseGenerator
     /// <returns></returns>
     public virtual async Task<TokenResponse> ProcessAsync(TokenRequestValidationResult request)
     {
-        switch (request.ValidatedRequest.GrantType)
+        return request.ValidatedRequest.GrantType switch
         {
-            case OidcConstants.GrantTypes.ClientCredentials:
-                return await ProcessClientCredentialsRequestAsync(request);
-            case OidcConstants.GrantTypes.Password:
-                return await ProcessPasswordRequestAsync(request);
-            case OidcConstants.GrantTypes.AuthorizationCode:
-                return await ProcessAuthorizationCodeRequestAsync(request);
-            case OidcConstants.GrantTypes.RefreshToken:
-                return await ProcessRefreshTokenRequestAsync(request);
-            case OidcConstants.GrantTypes.DeviceCode:
-                return await ProcessDeviceCodeRequestAsync(request);
-            default:
-                return await ProcessExtensionGrantRequestAsync(request);
-        }
+            OidcConstants.GrantTypes.ClientCredentials => await ProcessClientCredentialsRequestAsync(request),
+            OidcConstants.GrantTypes.Password => await ProcessPasswordRequestAsync(request),
+            OidcConstants.GrantTypes.AuthorizationCode => await ProcessAuthorizationCodeRequestAsync(request),
+            OidcConstants.GrantTypes.RefreshToken => await ProcessRefreshTokenRequestAsync(request),
+            OidcConstants.GrantTypes.DeviceCode => await ProcessDeviceCodeRequestAsync(request),
+            OidcConstants.GrantTypes.Ciba => await ProcessCibaRequestAsync(request),
+            _ => await ProcessExtensionGrantRequestAsync(request),
+        };
     }
 
     /// <summary>
-    /// Creates the response for an client credentials request.
+    /// Creates the response for a client credentials request.
     /// </summary>
     /// <param name="request">The request.</param>
     /// <returns></returns>
@@ -136,35 +132,15 @@ public class TokenResponseGenerator : ITokenResponseGenerator
     {
         Logger.LogTrace("Creating response for authorization code request");
 
-        //////////////////////////
-        // access token
-        /////////////////////////
-        var (accessToken, refreshToken) = await CreateAccessTokenAsync(request.ValidatedRequest);
-        var response = new TokenResponse
-        {
-            AccessToken = accessToken,
-            AccessTokenLifetime = request.ValidatedRequest.AccessTokenLifetime,
-            Custom = request.CustomResponse,
-            Scope = request.ValidatedRequest.AuthorizationCode.RequestedScopes.ToSpaceSeparatedString()
-        };
+        var response = await ProcessTokenRequestAsync(request);
 
-        //////////////////////////
-        // refresh token
-        /////////////////////////
-        if (refreshToken.IsPresent())
-        {
-            response.RefreshToken = refreshToken;
-        }
-
-        //////////////////////////
-        // id token
-        /////////////////////////
         if (request.ValidatedRequest.AuthorizationCode.IsOpenId)
         {
             // load the client that belongs to the authorization code
             Client client = null;
             if (request.ValidatedRequest.AuthorizationCode.ClientId != null)
             {
+                // todo: do we need this check?
                 client = await Clients.FindEnabledClientByIdAsync(request.ValidatedRequest.AuthorizationCode.ClientId);
             }
             if (client == null)
@@ -172,13 +148,10 @@ public class TokenResponseGenerator : ITokenResponseGenerator
                 throw new InvalidOperationException("Client does not exist anymore.");
             }
 
-            var parsedScopesResult = ScopeParser.ParseScopeValues(request.ValidatedRequest.AuthorizationCode.RequestedScopes);
-            var validatedResources = await Resources.CreateResourceValidationResult(parsedScopesResult);
-
             var tokenRequest = new TokenCreationRequest
             {
                 Subject = request.ValidatedRequest.AuthorizationCode.Subject,
-                ValidatedResources = validatedResources,
+                ValidatedResources = request.ValidatedRequest.ValidatedResources,
                 Nonce = request.ValidatedRequest.AuthorizationCode.Nonce,
                 AccessTokenToHash = response.AccessToken,
                 StateHash = request.ValidatedRequest.AuthorizationCode.StateHash,
@@ -202,47 +175,54 @@ public class TokenResponseGenerator : ITokenResponseGenerator
     {
         Logger.LogTrace("Creating response for refresh token request");
 
-        var oldAccessToken = request.ValidatedRequest.RefreshToken.AccessToken;
-        string accessTokenString;
+        var accessToken = request.ValidatedRequest.RefreshToken.GetAccessToken(request.ValidatedRequest.RequestedResourceIndicator);
 
-        if (request.ValidatedRequest.Client.UpdateAccessTokenClaimsOnRefresh)
+        var mustUpdate = accessToken == null || request.ValidatedRequest.Client.UpdateAccessTokenClaimsOnRefresh;
+        if (mustUpdate)
         {
-            var subject = request.ValidatedRequest.RefreshToken.Subject;
-
-            // todo: do we want to just parse here and build up validated result
-            // or do we want to fully re-run validation here.
-            var parsedScopesResult = ScopeParser.ParseScopeValues(oldAccessToken.Scopes);
-            var validatedResources = await Resources.CreateResourceValidationResult(parsedScopesResult);
-
             var creationRequest = new TokenCreationRequest
             {
-                Subject = subject,
+                Subject = request.ValidatedRequest.RefreshToken.Subject,
                 Description = request.ValidatedRequest.RefreshToken.Description,
                 ValidatedRequest = request.ValidatedRequest,
-                ValidatedResources = validatedResources
+                ValidatedResources = request.ValidatedRequest.ValidatedResources
             };
-
-            var newAccessToken = await TokenService.CreateAccessTokenAsync(creationRequest);
-            accessTokenString = await TokenService.CreateSecurityTokenAsync(newAccessToken);
+            accessToken = await TokenService.CreateAccessTokenAsync(creationRequest);
         }
         else
         {
-            oldAccessToken.CreationTime = Clock.UtcNow.UtcDateTime;
-            oldAccessToken.Lifetime = request.ValidatedRequest.AccessTokenLifetime;
+            // todo: do we want a new JTI?
+            accessToken.CreationTime = Clock.UtcNow.UtcDateTime;
+            accessToken.Lifetime = request.ValidatedRequest.AccessTokenLifetime;
 
-            accessTokenString = await TokenService.CreateSecurityTokenAsync(oldAccessToken);
+            // always take the current request confirmation values (this would be because the proof token changed from last time)
+            if (request.ValidatedRequest.Confirmation.IsPresent() && accessToken.Confirmation != request.ValidatedRequest.Confirmation)
+            {
+                accessToken.Confirmation = request.ValidatedRequest.Confirmation;
+                mustUpdate = true; // to update the DB below
+            }
         }
 
-        var handle = await RefreshTokenService.UpdateRefreshTokenAsync(request.ValidatedRequest.RefreshTokenHandle, request.ValidatedRequest.RefreshToken, request.ValidatedRequest.Client);
+        var accessTokenString = await TokenService.CreateSecurityTokenAsync(accessToken);
+        request.ValidatedRequest.RefreshToken.SetAccessToken(accessToken, request.ValidatedRequest.RequestedResourceIndicator);
+
+        var handle = await RefreshTokenService.UpdateRefreshTokenAsync(new RefreshTokenUpdateRequest
+        {
+            Handle = request.ValidatedRequest.RefreshTokenHandle,
+            RefreshToken = request.ValidatedRequest.RefreshToken,
+            Client = request.ValidatedRequest.Client,
+            MustUpdate = mustUpdate
+        });
 
         return new TokenResponse
         {
             IdentityToken = await CreateIdTokenFromRefreshTokenRequestAsync(request.ValidatedRequest, accessTokenString),
             AccessToken = accessTokenString,
+            AccessTokenType = OidcConstants.TokenResponse.BearerTokenType,
             AccessTokenLifetime = request.ValidatedRequest.AccessTokenLifetime,
             RefreshToken = handle,
             Custom = request.CustomResponse,
-            Scope = request.ValidatedRequest.RefreshToken.Scopes.ToSpaceSeparatedString()
+            Scope = request.ValidatedRequest.ValidatedResources.RawScopeValues.ToSpaceSeparatedString()
         };
     }
 
@@ -255,35 +235,15 @@ public class TokenResponseGenerator : ITokenResponseGenerator
     {
         Logger.LogTrace("Creating response for device code request");
 
-        //////////////////////////
-        // access token
-        /////////////////////////
-        var (accessToken, refreshToken) = await CreateAccessTokenAsync(request.ValidatedRequest);
-        var response = new TokenResponse
-        {
-            AccessToken = accessToken,
-            AccessTokenLifetime = request.ValidatedRequest.AccessTokenLifetime,
-            Custom = request.CustomResponse,
-            Scope = request.ValidatedRequest.DeviceCode.AuthorizedScopes.ToSpaceSeparatedString()
-        };
+        var response = await ProcessTokenRequestAsync(request);
 
-        //////////////////////////
-        // refresh token
-        /////////////////////////
-        if (refreshToken.IsPresent())
-        {
-            response.RefreshToken = refreshToken;
-        }
-
-        //////////////////////////
-        // id token
-        /////////////////////////
         if (request.ValidatedRequest.DeviceCode.IsOpenId)
         {
             // load the client that belongs to the device code
             Client client = null;
             if (request.ValidatedRequest.DeviceCode.ClientId != null)
             {
+                // todo: do we need this check?
                 client = await Clients.FindEnabledClientByIdAsync(request.ValidatedRequest.DeviceCode.ClientId);
             }
             if (client == null)
@@ -291,14 +251,11 @@ public class TokenResponseGenerator : ITokenResponseGenerator
                 throw new InvalidOperationException("Client does not exist anymore.");
             }
 
-            var parsedScopesResult = ScopeParser.ParseScopeValues(request.ValidatedRequest.DeviceCode.AuthorizedScopes);
-            var validatedResources = await Resources.CreateResourceValidationResult(parsedScopesResult);
-            
             var tokenRequest = new TokenCreationRequest
             {
                 Subject = request.ValidatedRequest.DeviceCode.Subject,
-                ValidatedResources = validatedResources,
                 AccessTokenToHash = response.AccessToken,
+                ValidatedResources = request.ValidatedRequest.ValidatedResources,
                 ValidatedRequest = request.ValidatedRequest
             };
 
@@ -306,6 +263,44 @@ public class TokenResponseGenerator : ITokenResponseGenerator
             var jwt = await TokenService.CreateSecurityTokenAsync(idToken);
             response.IdentityToken = jwt;
         }
+
+        return response;
+    }
+
+    /// <summary>
+    /// Processes the response for CIBA request.
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <returns></returns>
+    protected virtual async Task<TokenResponse> ProcessCibaRequestAsync(TokenRequestValidationResult request)
+    {
+        Logger.LogTrace("Creating response for CIBA request");
+
+        var response = await ProcessTokenRequestAsync(request);
+
+        // load the client that belongs to the device code
+        Client client = null;
+        if (request.ValidatedRequest.BackChannelAuthenticationRequest.ClientId != null)
+        {
+            // todo: do we need this check?
+            client = await Clients.FindEnabledClientByIdAsync(request.ValidatedRequest.BackChannelAuthenticationRequest.ClientId);
+        }
+        if (client == null)
+        {
+            throw new InvalidOperationException("Client does not exist anymore.");
+        }
+
+        var tokenRequest = new TokenCreationRequest
+        {
+            Subject = request.ValidatedRequest.BackChannelAuthenticationRequest.Subject,
+            AccessTokenToHash = response.AccessToken,
+            ValidatedResources = request.ValidatedRequest.ValidatedResources,
+            ValidatedRequest = request.ValidatedRequest
+        };
+
+        var idToken = await TokenService.CreateIdentityTokenAsync(tokenRequest);
+        var jwt = await TokenService.CreateSecurityTokenAsync(idToken);
+        response.IdentityToken = jwt;
 
         return response;
     }
@@ -323,16 +318,16 @@ public class TokenResponseGenerator : ITokenResponseGenerator
     }
 
     /// <summary>
-    /// Creates the response for a token request.
+    /// Creates a response for a token request containing an access token and a
+    /// refresh token if requested.
     /// </summary>
-    /// <param name="validationResult">The validation result.</param>
-    /// <returns></returns>
     protected virtual async Task<TokenResponse> ProcessTokenRequestAsync(TokenRequestValidationResult validationResult)
     {
         (var accessToken, var refreshToken) = await CreateAccessTokenAsync(validationResult.ValidatedRequest);
         var response = new TokenResponse
         {
             AccessToken = accessToken,
+            AccessTokenType = OidcConstants.TokenResponse.BearerTokenType,
             AccessTokenLifetime = validationResult.ValidatedRequest.AccessTokenLifetime,
             Custom = validationResult.CustomResponse,
             Scope = validationResult.ValidatedRequest.ValidatedResources.RawScopeValues.ToSpaceSeparatedString()
@@ -354,17 +349,26 @@ public class TokenResponseGenerator : ITokenResponseGenerator
     /// <exception cref="System.InvalidOperationException">Client does not exist anymore.</exception>
     protected virtual async Task<(string accessToken, string refreshToken)> CreateAccessTokenAsync(ValidatedTokenRequest request)
     {
-        TokenCreationRequest tokenRequest;
-        bool createRefreshToken;
+        var tokenRequest = new TokenCreationRequest
+        {
+            Subject = request.Subject,
+            ValidatedResources = request.ValidatedResources,
+            ValidatedRequest = request
+        };
+
+        var createRefreshToken = request.ValidatedResources.Resources.OfflineAccess;
+
+        IEnumerable<string> authorizedResourceIndicators = null;
+
+        IEnumerable<string> authorizedScopes;
 
         if (request.AuthorizationCode != null)
         {
-            createRefreshToken = request.AuthorizationCode.RequestedScopes.Contains(IdentityServerConstants.StandardScopes.OfflineAccess);
-
             // load the client that belongs to the authorization code
             Client client = null;
             if (request.AuthorizationCode.ClientId != null)
             {
+                // todo: do we need this check?
                 client = await Clients.FindEnabledClientByIdAsync(request.AuthorizationCode.ClientId);
             }
             if (client == null)
@@ -372,24 +376,39 @@ public class TokenResponseGenerator : ITokenResponseGenerator
                 throw new InvalidOperationException("Client does not exist anymore.");
             }
 
-            var parsedScopesResult = ScopeParser.ParseScopeValues(request.AuthorizationCode.RequestedScopes);
-            var validatedResources = await Resources.CreateResourceValidationResult(parsedScopesResult);
+            tokenRequest.Subject = request.AuthorizationCode.Subject;
+            tokenRequest.Description = request.AuthorizationCode.Description;
 
-            tokenRequest = new TokenCreationRequest
+            authorizedScopes = request.AuthorizationCode.RequestedScopes;
+            authorizedResourceIndicators = request.AuthorizationCode.RequestedResourceIndicators;
+        }
+        else if (request.BackChannelAuthenticationRequest != null)
+        {
+            // load the client that belongs to the authorization code
+            Client client = null;
+            if (request.BackChannelAuthenticationRequest.ClientId != null)
             {
-                Subject = request.AuthorizationCode.Subject,
-                Description = request.AuthorizationCode.Description,
-                ValidatedResources = validatedResources,
-                ValidatedRequest = request
-            };
+                // todo: do we need this check?
+                client = await Clients.FindEnabledClientByIdAsync(request.BackChannelAuthenticationRequest.ClientId);
+            }
+            if (client == null)
+            {
+                throw new InvalidOperationException("Client does not exist anymore.");
+            }
+
+            tokenRequest.Subject = request.BackChannelAuthenticationRequest.Subject;
+            tokenRequest.Description = request.BackChannelAuthenticationRequest.Description;
+
+            authorizedScopes = request.BackChannelAuthenticationRequest.AuthorizedScopes;
+            // TODO: should this come from the current request instead of the ciba request
+            authorizedResourceIndicators = request.BackChannelAuthenticationRequest.RequestedResourceIndicators;
         }
         else if (request.DeviceCode != null)
         {
-            createRefreshToken = request.DeviceCode.AuthorizedScopes.Contains(IdentityServerConstants.StandardScopes.OfflineAccess);
-
             Client client = null;
             if (request.DeviceCode.ClientId != null)
             {
+                // todo: do we need this check?
                 client = await Clients.FindEnabledClientByIdAsync(request.DeviceCode.ClientId);
             }
             if (client == null)
@@ -397,27 +416,14 @@ public class TokenResponseGenerator : ITokenResponseGenerator
                 throw new InvalidOperationException("Client does not exist anymore.");
             }
 
-            var parsedScopesResult = ScopeParser.ParseScopeValues(request.DeviceCode.AuthorizedScopes);
-            var validatedResources = await Resources.CreateResourceValidationResult(parsedScopesResult);
+            tokenRequest.Subject = request.DeviceCode.Subject;
+            tokenRequest.Description = request.DeviceCode.Description;
 
-            tokenRequest = new TokenCreationRequest
-            {
-                Subject = request.DeviceCode.Subject,
-                Description = request.DeviceCode.Description,
-                ValidatedResources = validatedResources,
-                ValidatedRequest = request
-            };
+            authorizedScopes = request.DeviceCode.AuthorizedScopes;
         }
         else
         {
-            createRefreshToken = request.ValidatedResources.Resources.OfflineAccess;
-
-            tokenRequest = new TokenCreationRequest
-            {
-                Subject = request.Subject,
-                ValidatedResources = request.ValidatedResources,
-                ValidatedRequest = request
-            };
+            authorizedScopes = request.ValidatedResources.RawScopeValues;
         }
 
         var at = await TokenService.CreateAccessTokenAsync(tokenRequest);
@@ -425,7 +431,18 @@ public class TokenResponseGenerator : ITokenResponseGenerator
 
         if (createRefreshToken)
         {
-            var refreshToken = await RefreshTokenService.CreateRefreshTokenAsync(tokenRequest.Subject, at, request.Client);
+            var rtRequest = new RefreshTokenCreationRequest
+            {
+                Client = request.Client,
+                Subject = tokenRequest.Subject,
+                Description = tokenRequest.Description,
+                AuthorizedScopes = authorizedScopes,
+                AuthorizedResourceIndicators = authorizedResourceIndicators,
+                AccessToken = at,
+                RequestedResourceIndicator = request.RequestedResourceIndicator,
+                ProofType = request.ProofType
+            };
+            var refreshToken = await RefreshTokenService.CreateRefreshTokenAsync(rtRequest);
             return (accessToken, refreshToken);
         }
 
@@ -440,21 +457,12 @@ public class TokenResponseGenerator : ITokenResponseGenerator
     /// <returns></returns>
     protected virtual async Task<string> CreateIdTokenFromRefreshTokenRequestAsync(ValidatedTokenRequest request, string newAccessToken)
     {
-        // todo: can we just check for "openid" scope?
-        //var identityResources = await Resources.FindEnabledIdentityResourcesByScopeAsync(request.RefreshToken.Scopes);
-        //if (identityResources.Any())
-        
-        if (request.RefreshToken.Scopes.Contains(OidcConstants.StandardScopes.OpenId))
+        if (request.RefreshToken.AuthorizedScopes.Contains(OidcConstants.StandardScopes.OpenId))
         {
-            var oldAccessToken = request.RefreshToken.AccessToken;
-
-            var parsedScopesResult = ScopeParser.ParseScopeValues(oldAccessToken.Scopes);
-            var validatedResources = await Resources.CreateResourceValidationResult(parsedScopesResult);
-
             var tokenRequest = new TokenCreationRequest
             {
                 Subject = request.RefreshToken.Subject,
-                ValidatedResources = validatedResources,
+                ValidatedResources = request.ValidatedResources,
                 ValidatedRequest = request,
                 AccessTokenToHash = newAccessToken
             };

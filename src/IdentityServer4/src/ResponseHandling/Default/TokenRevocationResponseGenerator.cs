@@ -134,7 +134,7 @@ public class TokenRevocationResponseGenerator : ITokenRevocationResponseGenerato
             {
                 Logger.LogDebug("Refresh token revoked");
                 await RefreshTokenStore.RemoveRefreshTokenAsync(validationResult.Token);
-                await ReferenceTokenStore.RemoveReferenceTokensAsync(token.SubjectId, token.ClientId);
+                await ReferenceTokenStore.RemoveReferenceTokensAsync(token.SubjectId, token.ClientId, token.SessionId);
             }
             else
             {

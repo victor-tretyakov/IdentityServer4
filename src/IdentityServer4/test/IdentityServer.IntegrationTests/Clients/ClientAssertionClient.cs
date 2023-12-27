@@ -241,9 +241,9 @@ public class ClientAssertionClient
             TokenEndpoint,
             new List<Claim>()
             {
-                new Claim("jti", Guid.NewGuid().ToString()),
-                new Claim(JwtClaimTypes.Subject, clientId),
-                new Claim(JwtClaimTypes.IssuedAt, new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
+                new("jti", Guid.NewGuid().ToString()),
+                new(JwtClaimTypes.Subject, clientId),
+                new(JwtClaimTypes.IssuedAt, new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
             },
             now,
             now.AddMinutes(1),

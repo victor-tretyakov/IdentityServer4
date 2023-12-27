@@ -79,10 +79,16 @@ public static class ClientMappers
             ClientClaimsPrefix = entity.ClientClaimsPrefix,
             PairWiseSubjectSalt = entity.PairWiseSubjectSalt,
             AllowedCorsOrigins = entity.AllowedCorsOrigins?.Select(o => o.Origin).ToList() ?? new List<string>(),
+            InitiateLoginUri = entity.InitiateLoginUri,
             Properties = entity.Properties?.ToDictionary(p => p.Key, p => p.Value) ?? new Dictionary<string, string>(),
             UserSsoLifetime = entity.UserSsoLifetime,
             UserCodeType = entity.UserCodeType,
             DeviceCodeLifetime = entity.DeviceCodeLifetime,
+            CibaLifetime = entity.CibaLifetime,
+            PollingInterval = entity.PollingInterval,
+            CoordinateLifetimeWithUserSession = entity.CoordinateLifetimeWithUserSession,
+            PushedAuthorizationLifetime = entity.PushedAuthorizationLifetime,
+            RequirePushedAuthorization = entity.RequirePushedAuthorization,
         };
     }
 
@@ -167,6 +173,7 @@ public static class ClientMappers
             {
                 Origin = o
             }).ToList() ?? new List<ClientCorsOrigin>(),
+            InitiateLoginUri = model.InitiateLoginUri,
             Properties = model.Properties?.Select(pair => new ClientProperty
             {
                 Key = pair.Key,
@@ -175,6 +182,11 @@ public static class ClientMappers
             UserSsoLifetime = model.UserSsoLifetime,
             UserCodeType = model.UserCodeType,
             DeviceCodeLifetime = model.DeviceCodeLifetime,
+            CibaLifetime = model.CibaLifetime,
+            PollingInterval = model.PollingInterval,
+            CoordinateLifetimeWithUserSession = model.CoordinateLifetimeWithUserSession,
+            PushedAuthorizationLifetime = model.PushedAuthorizationLifetime,
+            RequirePushedAuthorization = model.RequirePushedAuthorization,
         };
     }
 }

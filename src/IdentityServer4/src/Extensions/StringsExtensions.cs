@@ -7,8 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
 using System.Text.Encodings.Web;
 
 namespace IdentityServer4.Extensions;
@@ -23,14 +23,7 @@ internal static class StringExtensions
             return string.Empty;
         }
 
-        var sb = new StringBuilder(100);
-
-        foreach (var element in list)
-        {
-            sb.Append($"{element} ");
-        }
-
-        return sb.ToString().Trim();
+        return String.Join(' ', list);
     }
 
     [DebuggerStepThrough]
@@ -60,7 +53,7 @@ internal static class StringExtensions
     }
 
     [DebuggerStepThrough]
-    public static bool IsMissing(this string value)
+    public static bool IsMissing([NotNullWhen(false)] this string value)
     {
         return string.IsNullOrWhiteSpace(value);
     }
@@ -81,7 +74,7 @@ internal static class StringExtensions
     }
 
     [DebuggerStepThrough]
-    public static bool IsPresent(this string value)
+    public static bool IsPresent([NotNullWhen(true)] this string value)
     {
         return !string.IsNullOrWhiteSpace(value);
     }
@@ -91,7 +84,7 @@ internal static class StringExtensions
     {
         if (url != null && !url.StartsWith("/"))
         {
-            return $"/{url}";
+            return "/" + url;
         }
 
         return url;
@@ -102,7 +95,7 @@ internal static class StringExtensions
     {
         if (url != null && !url.EndsWith("/"))
         {
-            return $"{url}/";
+            return url + "/";
         }
 
         return url;
@@ -113,7 +106,7 @@ internal static class StringExtensions
     {
         if (url != null && url.StartsWith("/"))
         {
-            url = url[1..];
+            url = url.Substring(1);
         }
 
         return url;
@@ -124,7 +117,7 @@ internal static class StringExtensions
     {
         if (url != null && url.EndsWith("/"))
         {
-            url = url[..^1];
+            url = url.Substring(0, url.Length - 1);
         }
 
         return url;
@@ -133,11 +126,11 @@ internal static class StringExtensions
     [DebuggerStepThrough]
     public static string CleanUrlPath(this string url)
     {
-        if (string.IsNullOrWhiteSpace(url)) url = "/";
+        if (String.IsNullOrWhiteSpace(url)) url = "/";
 
         if (url != "/" && url.EndsWith("/"))
         {
-            url = url[..^1];
+            url = url.Substring(0, url.Length - 1);
         }
 
         return url;
@@ -161,7 +154,12 @@ internal static class StringExtensions
             }
 
             // url doesn't start with "//" or "/\"
-            return url[1] != '/' && url[1] != '\\';
+            if (url[1] != '/' && url[1] != '\\')
+            {
+                return true;
+            }
+
+            return false;
         }
 
         // Allows "~/" or "~/foo" but not "~//" or "~/\".
@@ -174,16 +172,37 @@ internal static class StringExtensions
             }
 
             // url doesn't start with "~//" or "~/\"
-            return url[2] != '/' && url[2] != '\\';
+            if (url[2] != '/' && url[2] != '\\')
+            {
+                return true;
+            }
+
+            return false;
         }
 
         return false;
     }
 
     [DebuggerStepThrough]
+    public static bool IsUri(this string input)
+    {
+        if (!Uri.TryCreate(input, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        if (uri.IsFile && !input.StartsWith(Uri.UriSchemeFile + "://", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    [DebuggerStepThrough]
     public static string AddQueryString(this string url, string query)
     {
-        if (!url.Contains('?'))
+        if (!url.Contains("?"))
         {
             url += "?";
         }
@@ -198,13 +217,13 @@ internal static class StringExtensions
     [DebuggerStepThrough]
     public static string AddQueryString(this string url, string name, string value)
     {
-        return url.AddQueryString($"{name}={UrlEncoder.Default.Encode(value)}");
+        return url.AddQueryString(name + "=" + UrlEncoder.Default.Encode(value));
     }
 
     [DebuggerStepThrough]
     public static string AddHashFragment(this string url, string query)
     {
-        if (!url.Contains('#'))
+        if (!url.Contains("#"))
         {
             url += "#";
         }
@@ -220,7 +239,7 @@ internal static class StringExtensions
             var idx = url.IndexOf('?');
             if (idx >= 0)
             {
-                url = url[(idx + 1)..];
+                url = url.Substring(idx + 1);
             }
             var query = QueryHelpers.ParseNullableQuery(url);
             if (query != null)
@@ -246,21 +265,18 @@ internal static class StringExtensions
                 return null;
             }
 
-            if (uri.Scheme == "http" || uri.Scheme == "https")
-            {
-                return $"{uri.Scheme}://{uri.Authority}";
-            }
+            return $"{uri.Scheme}://{uri.Authority}";
         }
 
         return null;
     }
-    
+
     public static string Obfuscate(this string value)
     {
         var last4Chars = "****";
         if (value.IsPresent() && value.Length > 4)
         {
-            last4Chars = value[^4..];
+            last4Chars = value.Substring(value.Length - 4);
         }
 
         return "****" + last4Chars;

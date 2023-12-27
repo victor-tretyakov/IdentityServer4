@@ -2,12 +2,15 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
+using IdentityServer4.Configuration;
 using IdentityServer4.Events;
 using IdentityServer4.Extensions;
+using IdentityServer4.Models;
 using IdentityServer4.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace IdentityServer4.Hosting;
@@ -35,16 +38,25 @@ public class IdentityServerMiddleware
     /// Invokes the middleware.
     /// </summary>
     /// <param name="context">The context.</param>
+    /// <param name="options"></param>
     /// <param name="router">The router.</param>
-    /// <param name="session">The user session.</param>
+    /// <param name="userSession">The user session.</param>
     /// <param name="events">The event service.</param>
-    /// <param name="backChannelLogoutService"></param>
+    /// <param name="issuerNameService">The issuer name service</param>
+    /// <param name="sessionCoordinationService"></param>
     /// <returns></returns>
-    public async Task Invoke(HttpContext context, IEndpointRouter router, IUserSession session, IEventService events, IBackChannelLogoutService backChannelLogoutService)
+    public async Task Invoke(
+        HttpContext context,
+        IdentityServerOptions options,
+        IEndpointRouter router,
+        IUserSession userSession,
+        IEventService events,
+        IIssuerNameService issuerNameService,
+        ISessionCoordinationService sessionCoordinationService)
     {
         // this will check the authentication session and from it emit the check session
         // cookie needed from JS-based signout clients.
-        await session.EnsureSessionIdCookieAsync();
+        await userSession.EnsureSessionIdCookieAsync();
 
         context.Response.OnStarting(async () =>
         {
@@ -53,13 +65,20 @@ public class IdentityServerMiddleware
                 _logger.LogDebug("SignOutCalled set; processing post-signout session cleanup.");
 
                 // this clears our session id cookie so JS clients can detect the user has signed out
-                await session.RemoveSessionIdCookieAsync();
+                await userSession.RemoveSessionIdCookieAsync();
 
-                // back channel logout
-                var logoutContext = await session.GetLogoutNotificationContext();
-                if (logoutContext != null)
+                var user = await userSession.GetUserAsync();
+                if (user != null)
                 {
-                    await backChannelLogoutService.SendLogoutNotificationsAsync(logoutContext);
+                    var session = new UserSession
+                    {
+                        SubjectId = user.GetSubjectId(),
+                        SessionId = await userSession.GetSessionIdAsync(),
+                        DisplayName = user.GetDisplayName(),
+                        ClientIds = (await userSession.GetClientListAsync()).ToList(),
+                        Issuer = await issuerNameService.GetCurrentAsync()
+                    };
+                    await sessionCoordinationService.ProcessLogoutAsync(session);
                 }
             }
         });
@@ -69,23 +88,33 @@ public class IdentityServerMiddleware
             var endpoint = router.Find(context);
             if (endpoint != null)
             {
-                _logger.LogInformation("Invoking IdentityServer endpoint: {endpointType} for {url}", endpoint.GetType().FullName, context.Request.Path.ToString());
+                var endpointType = endpoint.GetType().FullName;
+                var requestPath = context.Request.Path.ToString();
 
-                var result = await endpoint.ProcessAsync(context);
-
-                if (result != null)
+                try
                 {
-                    _logger.LogTrace("Invoking result: {type}", result.GetType().FullName);
-                    await result.ExecuteAsync(context);
-                }
+                    _logger.LogInformation("Invoking IdentityServer endpoint: {endpointType} for {url}", endpointType, requestPath);
 
-                return;
+                    var result = await endpoint.ProcessAsync(context);
+
+                    if (result != null)
+                    {
+                        _logger.LogTrace("Invoking result: {type}", result.GetType().FullName);
+                        await result.ExecuteAsync(context);
+                    }
+
+                    return;
+                }
+                finally
+                {
+                }
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (options.Logging.UnhandledExceptionLoggingFilter?.Invoke(context, ex) is not false)
         {
             await events.RaiseAsync(new UnhandledExceptionEvent(ex));
             _logger.LogCritical(ex, "Unhandled exception: {exception}", ex.Message);
+
             throw;
         }
 

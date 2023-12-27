@@ -9,6 +9,7 @@ using IdentityServer4.EntityFramework.Options;
 using IdentityServer4.EntityFramework.Stores;
 using IdentityServer4.Extensions;
 using IdentityServer4.Models;
+using IdentityServer4.Services;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
@@ -24,7 +25,7 @@ public class ClientStoreTests : IntegrationTest<ClientStoreTests, ConfigurationD
     {
         foreach (var options in TestDatabaseProviders.SelectMany(x => x.Select(y => (DbContextOptions<ConfigurationDbContext>) y)).ToList())
         {
-            using (var context = new ConfigurationDbContext(options, StoreOptions))
+            using (var context = new ConfigurationDbContext(options))
             {
                 context.Database.EnsureCreated();
             }
@@ -34,16 +35,16 @@ public class ClientStoreTests : IntegrationTest<ClientStoreTests, ConfigurationD
     [Theory, MemberData(nameof(TestDatabaseProviders))]
     public async Task FindClientByIdAsync_WhenClientDoesNotExist_ExpectNull(DbContextOptions<ConfigurationDbContext> options)
     {
-        using (var context = new ConfigurationDbContext(options, StoreOptions))
+        using (var context = new ConfigurationDbContext(options))
         {
-            var store = new ClientStore(context, FakeLogger<ClientStore>.Create());
+            var store = new ClientStore(context, FakeLogger<ClientStore>.Create(), new NoneCancellationTokenProvider());
             var client = await store.FindClientByIdAsync(Guid.NewGuid().ToString());
             client.Should().BeNull();
         }
     }
 
     [Theory, MemberData(nameof(TestDatabaseProviders))]
-    public async Task FindClientByIdAsync_WhenClientExists_ExpectClientRetured(DbContextOptions<ConfigurationDbContext> options)
+    public async Task FindClientByIdAsync_WhenClientExists_ExpectClientReturned(DbContextOptions<ConfigurationDbContext> options)
     {
         var testClient = new Client
         {
@@ -51,16 +52,16 @@ public class ClientStoreTests : IntegrationTest<ClientStoreTests, ConfigurationD
             ClientName = "Test Client"
         };
 
-        using (var context = new ConfigurationDbContext(options, StoreOptions))
+        using (var context = new ConfigurationDbContext(options))
         {
             context.Clients.Add(testClient.ToEntity());
             context.SaveChanges();
         }
 
         Client client;
-        using (var context = new ConfigurationDbContext(options, StoreOptions))
+        using (var context = new ConfigurationDbContext(options))
         {
-            var store = new ClientStore(context, FakeLogger<ClientStore>.Create());
+            var store = new ClientStore(context, FakeLogger<ClientStore>.Create(), new NoneCancellationTokenProvider());
             client = await store.FindClientByIdAsync(testClient.ClientId);
         }
 
@@ -74,27 +75,27 @@ public class ClientStoreTests : IntegrationTest<ClientStoreTests, ConfigurationD
         {
             ClientId = "properties_test_client",
             ClientName = "Properties Test Client",
-            AllowedCorsOrigins = {"https://localhost"},
+            AllowedCorsOrigins = { "https://localhost" },
             AllowedGrantTypes = GrantTypes.HybridAndClientCredentials,
-            AllowedScopes = {"openid", "profile", "api1"},
-            Claims = {new ClientClaim("test", "value")},
-            ClientSecrets = {new Secret("secret".Sha256())},
-            IdentityProviderRestrictions = {"AD"},
-            PostLogoutRedirectUris = {"https://locahost/signout-callback"},
-            Properties = {{"foo1", "bar1"}, {"foo2", "bar2"},},
-            RedirectUris = {"https://locahost/signin"}
+            AllowedScopes = { "openid", "profile", "api1" },
+            Claims = { new ClientClaim("test", "value") },
+            ClientSecrets = { new Secret("secret".Sha256()) },
+            IdentityProviderRestrictions = { "AD" },
+            PostLogoutRedirectUris = { "https://locahost/signout-callback" },
+            Properties = { { "foo1", "bar1" }, { "foo2", "bar2" }, },
+            RedirectUris = { "https://locahost/signin" }
         };
 
-        using (var context = new ConfigurationDbContext(options, StoreOptions))
+        using (var context = new ConfigurationDbContext(options))
         {
             context.Clients.Add(testClient.ToEntity());
             context.SaveChanges();
         }
 
         Client client;
-        using (var context = new ConfigurationDbContext(options, StoreOptions))
+        using (var context = new ConfigurationDbContext(options))
         {
-            var store = new ClientStore(context, FakeLogger<ClientStore>.Create());
+            var store = new ClientStore(context, FakeLogger<ClientStore>.Create(), new NoneCancellationTokenProvider());
             client = await store.FindClientByIdAsync(testClient.ClientId);
         }
 
@@ -108,7 +109,7 @@ public class ClientStoreTests : IntegrationTest<ClientStoreTests, ConfigurationD
         {
             ClientId = "test_client_with_uris",
             ClientName = "Test client with URIs",
-            AllowedScopes = {"openid", "profile", "api1"},
+            AllowedScopes = { "openid", "profile", "api1" },
             AllowedGrantTypes = GrantTypes.CodeAndClientCredentials
         };
 
@@ -119,7 +120,7 @@ public class ClientStoreTests : IntegrationTest<ClientStoreTests, ConfigurationD
             testClient.AllowedCorsOrigins.Add($"https://localhost:{i}");
         }
 
-        using (var context = new ConfigurationDbContext(options, StoreOptions))
+        using (var context = new ConfigurationDbContext(options))
         {
             context.Clients.Add(testClient.ToEntity());
 
@@ -139,17 +140,19 @@ public class ClientStoreTests : IntegrationTest<ClientStoreTests, ConfigurationD
 
             context.SaveChanges();
         }
-        
-        using (var context = new ConfigurationDbContext(options, StoreOptions))
+
+        using (var context = new ConfigurationDbContext(options))
         {
-            var store = new ClientStore(context, FakeLogger<ClientStore>.Create());
+            var store = new ClientStore(context, FakeLogger<ClientStore>.Create(), new NoneCancellationTokenProvider());
 
             const int timeout = 5000;
             var task = Task.Run(() => store.FindClientByIdAsync(testClient.ClientId));
 
             if (await Task.WhenAny(task, Task.Delay(timeout)) == task)
             {
+#pragma warning disable xUnit1031 // Do not use blocking task operations in test method, suppressed because the task must have completed to enter this block
                 var client = task.Result;
+#pragma warning restore xUnit1031 // Do not use blocking task operations in test method
                 client.Should().BeEquivalentTo(testClient);
             }
             else
