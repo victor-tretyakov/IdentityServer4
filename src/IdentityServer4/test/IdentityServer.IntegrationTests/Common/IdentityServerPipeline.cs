@@ -2,15 +2,6 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Security.Claims;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using FluentAssertions;
 using IdentityModel.Client;
 using IdentityServer4;
@@ -26,6 +17,15 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Security.Claims;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace IdentityServer.IntegrationTests.Common;
 
@@ -33,6 +33,7 @@ public class IdentityServerPipeline
 {
     public const string BaseUrl = "https://server";
     public const string LoginPage = BaseUrl + "/account/login";
+    public const string LogoutPage = BaseUrl + "/account/logout";
     public const string ConsentPage = BaseUrl + "/account/consent";
     public const string ErrorPage = BaseUrl + "/home/error";
 
@@ -40,6 +41,7 @@ public class IdentityServerPipeline
     public const string DiscoveryEndpoint = BaseUrl + "/.well-known/openid-configuration";
     public const string DiscoveryKeysEndpoint = BaseUrl + "/.well-known/openid-configuration/jwks";
     public const string AuthorizeEndpoint = BaseUrl + "/connect/authorize";
+    public const string BackchannelAuthenticationEndpoint = BaseUrl + "/connect/ciba";
     public const string TokenEndpoint = BaseUrl + "/connect/token";
     public const string RevocationEndpoint = BaseUrl + "/connect/revocation";
     public const string UserInfoEndpoint = BaseUrl + "/connect/userinfo";
@@ -48,6 +50,7 @@ public class IdentityServerPipeline
     public const string EndSessionEndpoint = BaseUrl + "/connect/endsession";
     public const string EndSessionCallbackEndpoint = BaseUrl + "/connect/endsession/callback";
     public const string CheckSessionEndpoint = BaseUrl + "/connect/checksession";
+    public const string ParEndpoint = BaseUrl + "/connect/par";
 
     public const string FederatedSignOutPath = "/signout-oidc";
     public const string FederatedSignOutUrl = BaseUrl + FederatedSignOutPath;
@@ -118,7 +121,7 @@ public class IdentityServerPipeline
                 scheme.HandlerType = typeof(MockExternalAuthenticationHandler);
             });
         });
-        services.AddTransient<MockExternalAuthenticationHandler>(svcs =>
+        services.AddTransient(svcs =>
         {
             var handler = new MockExternalAuthenticationHandler(svcs.GetRequiredService<IHttpContextAccessor>());
             if (OnFederatedSignout != null) handler.OnFederatedSignout = OnFederatedSignout;
@@ -127,8 +130,6 @@ public class IdentityServerPipeline
 
         services.AddIdentityServer(options =>
         {
-            Options = options;
-
             options.Events = new EventsOptions
             {
                 RaiseErrorEvents = true,
@@ -136,13 +137,16 @@ public class IdentityServerPipeline
                 RaiseInformationEvents = true,
                 RaiseSuccessEvents = true
             };
+            options.KeyManagement.Enabled = false;
+
+            Options = options;
         })
-        .AddInMemoryClients(Clients)
-        .AddInMemoryIdentityResources(IdentityScopes)
-        .AddInMemoryApiResources(ApiResources)
-        .AddInMemoryApiScopes(ApiScopes)
-        .AddTestUsers(Users)
-        .AddDeveloperSigningCredential(persistKey: false);
+            .AddInMemoryClients(Clients)
+            .AddInMemoryIdentityResources(IdentityScopes)
+            .AddInMemoryApiResources(ApiResources)
+            .AddInMemoryApiScopes(ApiScopes)
+            .AddTestUsers(Users)
+            .AddDeveloperSigningCredential(persistKey: false);
 
         services.AddHttpClient(IdentityServerConstants.HttpClients.BackChannelLogoutHttpClient)
             .AddHttpMessageHandler(() => BackChannelMessageHandler);
@@ -155,11 +159,17 @@ public class IdentityServerPipeline
 
     public void ConfigureApp(IApplicationBuilder app)
     {
+        ApplicationServices = app.ApplicationServices;
+
         OnPreConfigure(app);
 
         app.UseIdentityServer();
 
         // UI endpoints
+        app.Map("/account/create", path =>
+        {
+            path.Run(ctx => OnCreateAccount(ctx));
+        });
         app.Map(Constants.UIConstants.DefaultRoutePaths.Login.EnsureLeadingSlash(), path =>
         {
             path.Run(ctx => OnLogin(ctx));
@@ -172,6 +182,10 @@ public class IdentityServerPipeline
         {
             path.Run(ctx => OnConsent(ctx));
         });
+        app.Map("/custom", path =>
+        {
+            path.Run(ctx => OnCustom(ctx));
+        });
         app.Map(Constants.UIConstants.DefaultRoutePaths.Error.EnsureLeadingSlash(), path =>
         {
             path.Run(ctx => OnError(ctx));
@@ -181,9 +195,9 @@ public class IdentityServerPipeline
     }
 
     public bool LoginWasCalled { get; set; }
+    public string LoginReturnUrl { get; set; }
     public AuthorizationRequest LoginRequest { get; set; }
     public ClaimsPrincipal Subject { get; set; }
-    public bool FollowLoginReturnUrl { get; set; }
 
     private async Task OnLogin(HttpContext ctx)
     {
@@ -192,10 +206,23 @@ public class IdentityServerPipeline
         await IssueLoginCookie(ctx);
     }
 
+    public bool CreateAccountWasCalled { get; set; }
+    public string CreateAccountReturnUrl { get; set; }
+    public AuthorizationRequest CreateAccountRequest { get; set; }
+    private async Task OnCreateAccount(HttpContext ctx)
+    {
+        CreateAccountWasCalled = true;
+        var interaction = ctx.RequestServices.GetRequiredService<IIdentityServerInteractionService>();
+        CreateAccountReturnUrl = ctx.Request.Query[Options.UserInteraction.CreateAccountReturnUrlParameter].FirstOrDefault();
+        CreateAccountRequest = await interaction.GetAuthorizationContextAsync(CreateAccountReturnUrl);
+        await IssueLoginCookie(ctx);
+    }
+
     private async Task ReadLoginRequest(HttpContext ctx)
     {
         var interaction = ctx.RequestServices.GetRequiredService<IIdentityServerInteractionService>();
-        LoginRequest = await interaction.GetAuthorizationContextAsync(ctx.Request.Query["returnUrl"].FirstOrDefault());
+        LoginReturnUrl = ctx.Request.Query[Options.UserInteraction.LoginReturnUrlParameter].FirstOrDefault();
+        LoginRequest = await interaction.GetAuthorizationContextAsync(LoginReturnUrl);
     }
 
     private async Task IssueLoginCookie(HttpContext ctx)
@@ -239,13 +266,11 @@ public class IdentityServerPipeline
         await ReadConsentMessage(ctx);
         await CreateConsentResponse(ctx);
     }
-
     private async Task ReadConsentMessage(HttpContext ctx)
     {
         var interaction = ctx.RequestServices.GetRequiredService<IIdentityServerInteractionService>();
         ConsentRequest = await interaction.GetAuthorizationContextAsync(ctx.Request.Query["returnUrl"].FirstOrDefault());
     }
-
     private async Task CreateConsentResponse(HttpContext ctx)
     {
         if (ConsentRequest != null && ConsentResponse != null)
@@ -262,8 +287,19 @@ public class IdentityServerPipeline
         }
     }
 
+    public bool CustomWasCalled { get; set; }
+    public AuthorizationRequest CustomRequest { get; set; }
+
+    private async Task OnCustom(HttpContext ctx)
+    {
+        CustomWasCalled = true;
+        var interaction = ctx.RequestServices.GetRequiredService<IIdentityServerInteractionService>();
+        CustomRequest = await interaction.GetAuthorizationContextAsync(ctx.Request.Query[Options.UserInteraction.ConsentReturnUrlParameter].FirstOrDefault());
+    }
+
     public bool ErrorWasCalled { get; set; }
     public ErrorMessage ErrorMessage { get; set; }
+    public IServiceProvider ApplicationServices { get; private set; }
 
     private async Task OnError(HttpContext ctx)
     {
@@ -292,6 +328,15 @@ public class IdentityServerPipeline
     public async Task LoginAsync(string subject)
     {
         await LoginAsync(new IdentityServerUser(subject).CreatePrincipal());
+    }
+    public async Task LogoutAsync()
+    {
+        var old = BrowserClient.AllowAutoRedirect;
+        BrowserClient.AllowAutoRedirect = false;
+
+        await BrowserClient.GetAsync(LogoutPage);
+
+        BrowserClient.AllowAutoRedirect = old;
     }
 
     public void RemoveLoginCookie()
@@ -336,6 +381,49 @@ public class IdentityServerPipeline
             extra: Parameters.FromObject(extra));
         return url;
     }
+    public async Task<(JsonDocument, HttpStatusCode)> PushAuthorizationRequestAsync(
+        Dictionary<string, string> parameters)
+    {
+        var httpResponse = await BackChannelClient.PostAsync(ParEndpoint,
+            new FormUrlEncodedContent(parameters));
+        var statusCode = httpResponse.StatusCode;
+        var rawContent = await httpResponse.Content.ReadAsStringAsync();
+        var parsed = rawContent.IsPresent() ? JsonDocument.Parse(rawContent) : null;
+        return (parsed, statusCode);
+    }
+
+    public async Task<(JsonDocument, HttpStatusCode)> PushAuthorizationRequestAsync(
+        string clientId = "client1",
+        string clientSecret = "secret",
+        string responseType = "id_token",
+        string scope = "openid profile",
+        string redirectUri = "https://client1/callback",
+        string nonce = "123_nonce",
+        string state = "123_state",
+        Dictionary<string, string> extra = null
+    )
+    {
+        var parameters = new Dictionary<string, string>
+            {
+                { "client_id", clientId },
+                { "client_secret", clientSecret },
+                { "response_type", responseType },
+                { "scope", scope },
+                { "redirect_uri", redirectUri },
+                { "nonce", nonce },
+                { "state", state }
+            };
+
+        if (extra != null)
+        {
+            foreach (var (key, value) in extra)
+            {
+                parameters[key] = value;
+            }
+        }
+
+        return await PushAuthorizationRequestAsync(parameters);
+    }
 
     public AuthorizeResponse ParseAuthorizationResponseUrl(string url)
     {
@@ -375,7 +463,13 @@ public class IdentityServerPipeline
             return null;
         }
 
-        return new AuthorizeResponse(redirect);
+        return new IdentityModel.Client.AuthorizeResponse(redirect);
+    }
+
+    public T Resolve<T>()
+    {
+        // create throw-away scope
+        return ApplicationServices.CreateScope().ServiceProvider.GetRequiredService<T>();
     }
 }
 

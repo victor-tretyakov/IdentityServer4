@@ -92,7 +92,7 @@ internal class UserInfoEndpoint : IEndpointHandler
         return new UserInfoResult(response);
     }
 
-    private static IEndpointResult Error(string error, string description = null)
+    private IEndpointResult Error(string error, string description = null)
     {
         return new ProtectedResourceErrorResult(error, description);
     }

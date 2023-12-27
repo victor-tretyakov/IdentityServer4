@@ -31,9 +31,9 @@ public class RedirectUriTests
             Enabled = true,
             ClientId = "code_client",
             ClientSecrets = new List<Secret>
-                {
-                    new Secret("secret".Sha512())
-                },
+            {
+                new Secret("secret".Sha512())
+            },
 
             AllowedGrantTypes = GrantTypes.Code,
             AllowedScopes = { "openid" },
@@ -41,10 +41,10 @@ public class RedirectUriTests
             RequireConsent = false,
             RequirePkce = false,
             RedirectUris = new List<string>
-                {
-                    "https://code_client/callback",
-                    "https://code_client/callback?foo=bar&baz=quux"
-                }
+            {
+                "https://code_client/callback",
+                "https://code_client/callback?foo=bar&baz=quux"
+            }
         });
 
         _mockPipeline.IdentityScopes.Add(new IdentityResources.OpenId());
@@ -54,11 +54,11 @@ public class RedirectUriTests
             SubjectId = "bob",
             Username = "bob",
             Claims = new Claim[]
-                {
-                        new Claim("name", "Bob Loblaw"),
-                        new Claim("email", "bob@loblaw.com"),
-                        new Claim("role", "Attorney")
-                }
+            {
+                new Claim("name", "Bob Loblaw"),
+                new Claim("email", "bob@loblaw.com"),
+                new Claim("role", "Attorney")
+            }
         });
     }
 
@@ -72,12 +72,12 @@ public class RedirectUriTests
         var state = Guid.NewGuid().ToString();
 
         var url = _mockPipeline.CreateAuthorizeUrl(
-                       clientId: "code_client",
-                       responseType: "code",
-                       scope: "openid",
-                       redirectUri: "https://bad",
-                       state: state,
-                       nonce: nonce);
+            clientId: "code_client",
+            responseType: "code",
+            scope: "openid",
+            redirectUri: "https://bad",
+            state: state,
+            nonce: nonce);
         var response = await _mockPipeline.BrowserClient.GetAsync(url);
 
         _mockPipeline.ErrorWasCalled.Should().BeTrue();
@@ -94,13 +94,13 @@ public class RedirectUriTests
         var state = Guid.NewGuid().ToString();
 
         var url = _mockPipeline.CreateAuthorizeUrl(
-                      clientId: "code_client",
-                      responseType: "code",
-                      scope: "openid",
-                      // redirectUri deliberately absent 
-                      redirectUri: null,
-                      state: state,
-                      nonce: nonce);
+            clientId: "code_client",
+            responseType: "code",
+            scope: "openid",
+            // redirectUri deliberately absent 
+            redirectUri: null,
+            state: state,
+            nonce: nonce);
         var response = await _mockPipeline.BrowserClient.GetAsync(url);
 
         _mockPipeline.ErrorWasCalled.Should().BeTrue();
@@ -118,12 +118,12 @@ public class RedirectUriTests
 
         _mockPipeline.BrowserClient.AllowAutoRedirect = false;
         var url = _mockPipeline.CreateAuthorizeUrl(
-                       clientId: "code_client",
-                       responseType: "code",
-                       scope: "openid",
-                       redirectUri: "https://code_client/callback?foo=bar&baz=quux",
-                       state: state,
-                       nonce: nonce);
+            clientId: "code_client",
+            responseType: "code",
+            scope: "openid",
+            redirectUri: "https://code_client/callback?foo=bar&baz=quux",
+            state: state,
+            nonce: nonce);
         var response = await _mockPipeline.BrowserClient.GetAsync(url);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
@@ -146,12 +146,12 @@ public class RedirectUriTests
         var state = Guid.NewGuid().ToString();
 
         var url = _mockPipeline.CreateAuthorizeUrl(
-                       clientId: "code_client",
-                       responseType: "code",
-                       scope: "openid",
-                       redirectUri: "https://code_client/callback?baz=quux&foo=bar",
-                       state: state,
-                       nonce: nonce);
+            clientId: "code_client",
+            responseType: "code",
+            scope: "openid",
+            redirectUri: "https://code_client/callback?baz=quux&foo=bar",
+            state: state,
+            nonce: nonce);
         var response = await _mockPipeline.BrowserClient.GetAsync(url);
 
         _mockPipeline.ErrorWasCalled.Should().BeTrue();

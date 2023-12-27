@@ -18,7 +18,7 @@ public static class EventIds
 
     public const int ClientAuthenticationSuccess = AuthenticationEventsStart + 10;
     public const int ClientAuthenticationFailure = AuthenticationEventsStart + 11;
-    
+
     public const int ApiAuthenticationSuccess = AuthenticationEventsStart + 20;
     public const int ApiAuthenticationFailure = AuthenticationEventsStart + 21;
 
@@ -34,7 +34,7 @@ public static class EventIds
 
     public const int TokenIntrospectionSuccess = TokenEventsStart + 20;
     public const int TokenIntrospectionFailure = TokenEventsStart + 21;
-    
+
     //////////////////////////////////////////////////////
     /// Error related events
     //////////////////////////////////////////////////////
@@ -42,6 +42,7 @@ public static class EventIds
 
     public const int UnhandledException = ErrorEventsStart + 0;
     public const int InvalidClientConfiguration = ErrorEventsStart + 1;
+    public const int InvalidIdentityProviderConfiguration = ErrorEventsStart + 2;
 
     //////////////////////////////////////////////////////
     /// Grants related events
@@ -52,8 +53,19 @@ public static class EventIds
     public const int ConsentDenied = GrantsEventsStart + 1;
     public const int GrantsRevoked = GrantsEventsStart + 2;
 
+    //////////////////////////////////////////////////////
+    /// Device flow related events
+    //////////////////////////////////////////////////////
     private const int DeviceFlowEventsStart = 5000;
 
     public const int DeviceAuthorizationSuccess = DeviceFlowEventsStart + 0;
     public const int DeviceAuthorizationFailure = DeviceFlowEventsStart + 1;
+
+    //////////////////////////////////////////////////////
+    /// Backchannel authentication related events
+    //////////////////////////////////////////////////////
+    private const int BackchannelAuthenticationEventsStart = 6000;
+
+    public const int BackchannelAuthenticationSuccess = BackchannelAuthenticationEventsStart + 0;
+    public const int BackchannelAuthenticationFailure = BackchannelAuthenticationEventsStart + 1;
 }

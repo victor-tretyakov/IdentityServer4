@@ -3,17 +3,20 @@
 
 
 using FluentAssertions;
+using IdentityModel;
 using IdentityServer.IntegrationTests.Common;
 using IdentityServer4;
 using IdentityServer4.Models;
 using IdentityServer4.Stores;
-using IdentityServer4.Stores.Default;
+using IdentityServer4.Stores.Serialization;
 using IdentityServer4.Test;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -133,7 +136,8 @@ public class ConsentTests
             _mockPipeline.Initialize();
         }
 
-        await _mockPipeline.LoginAsync("bob");
+        var user = new IdentityServerUser("bob") { Tenant = "tenant_value" };
+        await _mockPipeline.LoginAsync(user.CreatePrincipal());
 
         var url = _mockPipeline.CreateAuthorizeUrl(
             clientId: "client2",
@@ -271,5 +275,167 @@ public class ConsentTests
         authorization.IsError.Should().BeTrue();
         authorization.Error.Should().Be("access_denied");
         authorization.State.Should().Be("123_state");
+    }
+
+    [Theory]
+    [InlineData((Type) null)]
+    [InlineData(typeof(QueryStringAuthorizationParametersMessageStore))]
+    [InlineData(typeof(DistributedCacheAuthorizationParametersMessageStore))]
+    [Trait("Category", Category)]
+    public async Task consent_response_of_temporarily_unavailable_should_return_error_to_client(Type storeType)
+    {
+        if (storeType != null)
+        {
+            _mockPipeline.OnPostConfigureServices += services =>
+            {
+                services.AddTransient(typeof(IAuthorizationParametersMessageStore), storeType);
+            };
+            _mockPipeline.Initialize();
+        }
+
+        await _mockPipeline.LoginAsync("bob");
+
+        _mockPipeline.ConsentResponse = new ConsentResponse()
+        {
+            Error = AuthorizationError.TemporarilyUnavailable,
+            ErrorDescription = "some description"
+        };
+        _mockPipeline.BrowserClient.StopRedirectingAfter = 2;
+
+        var url = _mockPipeline.CreateAuthorizeUrl(
+            clientId: "client2",
+            responseType: "id_token token",
+            scope: "openid profile api1 api2",
+            redirectUri: "https://client2/callback",
+            state: "123_state",
+            nonce: "123_nonce");
+        var response = await _mockPipeline.BrowserClient.GetAsync(url);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location.ToString().Should().StartWith("https://client2/callback");
+
+        var authorization = new IdentityModel.Client.AuthorizeResponse(response.Headers.Location.ToString());
+        authorization.IsError.Should().BeTrue();
+        authorization.Error.Should().Be("temporarily_unavailable");
+        authorization.ErrorDescription.Should().Be("some description");
+    }
+
+    [Theory]
+    [InlineData((Type) null)]
+    [InlineData(typeof(QueryStringAuthorizationParametersMessageStore))]
+    [InlineData(typeof(DistributedCacheAuthorizationParametersMessageStore))]
+    [Trait("Category", Category)]
+    public async Task consent_response_of_unmet_authentication_requirements_should_return_error_to_client(Type storeType)
+    {
+        if (storeType != null)
+        {
+            _mockPipeline.OnPostConfigureServices += services =>
+            {
+                services.AddTransient(typeof(IAuthorizationParametersMessageStore), storeType);
+            };
+            _mockPipeline.Initialize();
+        }
+
+        await _mockPipeline.LoginAsync("bob");
+
+        _mockPipeline.ConsentResponse = new ConsentResponse()
+        {
+            Error = AuthorizationError.UnmetAuthenticationRequirements,
+            ErrorDescription = "some description"
+        };
+        _mockPipeline.BrowserClient.StopRedirectingAfter = 2;
+
+        var url = _mockPipeline.CreateAuthorizeUrl(
+            clientId: "client2",
+            responseType: "id_token token",
+            scope: "openid profile api1 api2",
+            redirectUri: "https://client2/callback",
+            state: "123_state",
+            nonce: "123_nonce");
+        var response = await _mockPipeline.BrowserClient.GetAsync(url);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location.ToString().Should().StartWith("https://client2/callback");
+
+        var authorization = new IdentityModel.Client.AuthorizeResponse(response.Headers.Location.ToString());
+        authorization.IsError.Should().BeTrue();
+        authorization.Error.Should().Be("unmet_authentication_requirements");
+        authorization.ErrorDescription.Should().Be("some description");
+    }
+
+    [Fact]
+    [Trait("Category", Category)]
+    public async Task legacy_consents_should_apply_and_be_migrated_to_hex_encoding()
+    {
+        var clientId = "client2";
+        var subjectId = "bob";
+
+        // Create and serialize a consent record
+        _mockPipeline.Options.PersistentGrants.DataProtectData = false;
+        var serializer = _mockPipeline.Resolve<IPersistentGrantSerializer>();
+        var serialized = serializer.Serialize(new Consent
+        {
+            ClientId = clientId,
+            SubjectId = subjectId,
+            CreationTime = DateTime.UtcNow,
+            Scopes = new List<string> { "openid" }
+        });
+
+        // Store the consent using the legacy key format
+        var persistedGrantStore = _mockPipeline.Resolve<IPersistedGrantStore>();
+        var legacyKey = $"{clientId}|{subjectId}:{IdentityServerConstants.PersistedGrantTypes.UserConsent}".ToSha256();
+        var legacyConsent = new PersistedGrant
+        {
+            Key = legacyKey,
+            Type = IdentityServerConstants.PersistedGrantTypes.UserConsent,
+            ClientId = clientId,
+            SubjectId = subjectId,
+            SessionId = Guid.NewGuid().ToString(),
+            Description = null,
+            CreationTime = DateTime.UtcNow,
+            Expiration = null,
+            ConsumedTime = null,
+            Data = serialized
+        };
+        await persistedGrantStore.StoreAsync(legacyConsent);
+
+        // Create a session cookie
+        await _mockPipeline.LoginAsync("bob");
+
+        // Start a challenge
+        var url = _mockPipeline.CreateAuthorizeUrl(
+           clientId: "client2",
+           responseType: "id_token",
+           scope: "openid",
+           redirectUri: "https://client2/callback",
+           state: "123_state",
+           nonce: "123_nonce"
+        );
+        _mockPipeline.BrowserClient.AllowAutoRedirect = false;
+        var response = await _mockPipeline.BrowserClient.GetAsync(url);
+
+        // The existing legacy consent should apply - user isn't show consent screen
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location.ToString().Should().StartWith("https://client2/callback");
+        _mockPipeline.ConsentWasCalled.Should().BeFalse();
+
+        // The legacy consent should be migrated to use a new key...
+
+        // Old key shouldn't find anything
+        var grant = await persistedGrantStore.GetAsync(legacyKey);
+        grant.Should().BeNull();
+
+        // New key should
+        var hexEncodedKeyNoHash = $"{clientId}|{subjectId}-1:{IdentityServerConstants.PersistedGrantTypes.UserConsent}";
+        using (var sha = SHA256.Create())
+        {
+            var bytes = Encoding.UTF8.GetBytes(hexEncodedKeyNoHash);
+            var hash = sha.ComputeHash(bytes);
+            var hexEncodedKey = BitConverter.ToString(hash).Replace("-", "");
+            grant = await persistedGrantStore.GetAsync(hexEncodedKey);
+            grant.Should().NotBeNull();
+            grant.ClientId.Should().Be(clientId);
+            grant.SubjectId.Should().Be(subjectId);
+        }
     }
 }

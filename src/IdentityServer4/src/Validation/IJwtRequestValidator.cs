@@ -1,9 +1,14 @@
-using IdentityServer4.Models;
 using System.Threading.Tasks;
 
 namespace IdentityServer4.Validation;
 
+/// <summary>
+/// Interface for request object validator
+/// </summary>
 public interface IJwtRequestValidator
 {
-    Task<JwtRequestValidationResult> ValidateAsync(Client client, string jwtTokenString);
+    /// <summary>
+    /// Validates a JWT request object
+    /// </summary>
+    Task<JwtRequestValidationResult> ValidateAsync(JwtRequestValidationContext context);
 }

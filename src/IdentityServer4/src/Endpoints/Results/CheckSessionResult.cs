@@ -2,22 +2,24 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System.Threading.Tasks;
-using IdentityServer4.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using IdentityServer4.Configuration;
 using IdentityServer4.Extensions;
+using IdentityServer4.Hosting;
+using Microsoft.AspNetCore.Http;
+using System.Threading.Tasks;
 
 namespace IdentityServer4.Endpoints.Results;
 
-internal class CheckSessionResult : IEndpointResult
+/// <summary>
+/// The resukt of the check session endpoint
+/// </summary>
+public class CheckSessionResult : EndpointResult<CheckSessionResult>
 {
-    public CheckSessionResult()
-    {
-    }
+}
 
-    internal CheckSessionResult(IdentityServerOptions options)
+internal class CheckSessionHttpWriter : IHttpResponseWriter<CheckSessionResult>
+{
+    public CheckSessionHttpWriter(IdentityServerOptions options)
     {
         _options = options;
     }
@@ -27,15 +29,8 @@ internal class CheckSessionResult : IEndpointResult
     private static readonly object Lock = new object();
     private static volatile string LastCheckSessionCookieName;
 
-    private void Init(HttpContext context)
+    public async Task WriteHttpResponse(CheckSessionResult result, HttpContext context)
     {
-        _options = _options ?? context.RequestServices.GetRequiredService<IdentityServerOptions>();
-    }
-
-    public async Task ExecuteAsync(HttpContext context)
-    {
-        Init(context);
-
         AddCspHeaders(context);
 
         var html = GetHtml(_options.Authentication.CheckSessionCookieName);
@@ -44,7 +39,7 @@ internal class CheckSessionResult : IEndpointResult
 
     private void AddCspHeaders(HttpContext context)
     {
-        context.Response.AddScriptCspHeaders(_options.Csp, "sha256-fa5rxHhZ799izGRP38+h4ud5QXNT0SFaFlh4eqDumBI=");
+        context.Response.AddScriptCspHeaders(_options.Csp, IdentityServerConstants.ContentSecurityPolicyHashes.CheckSessionScript);
     }
     private string GetHtml(string cookieName)
     {

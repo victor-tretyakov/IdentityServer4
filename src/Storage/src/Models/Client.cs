@@ -2,11 +2,11 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System.Collections.Generic;
-using System.Linq;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 
 namespace IdentityServer4.Models;
 
@@ -29,7 +29,7 @@ public class Client
     /// <summary>
     /// Unique ID of the client
     /// </summary>
-    public string ClientId { get; set; }
+    public string ClientId { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the protocol type.
@@ -52,22 +52,22 @@ public class Client
     /// <summary>
     /// Client display name (used for logging and consent screen)
     /// </summary>
-    public string ClientName { get; set; }
+    public string? ClientName { get; set; }
 
     /// <summary>
     /// Description of the client.
     /// </summary>
-    public string Description { get; set; }
+    public string? Description { get; set; }
 
     /// <summary>
     /// URI to further information about client (used on consent screen)
     /// </summary>
-    public string ClientUri { get; set; }
+    public string? ClientUri { get; set; }
 
     /// <summary>
     /// URI to client logo (used on consent screen)
     /// </summary>
-    public string LogoUri { get; set; }
+    public string? LogoUri { get; set; }
 
     /// <summary>
     /// Specifies whether a consent screen is required (defaults to <c>false</c>)
@@ -106,7 +106,7 @@ public class Client
     /// Specifies whether the client must use a request object on authorize requests (defaults to <c>false</c>.)
     /// </summary>
     public bool RequireRequestObject { get; set; } = false;
-    
+
     /// <summary>
     /// Controls whether access tokens are transmitted via the browser for this client (defaults to <c>false</c>).
     /// This can prevent accidental leakage of access tokens when multiple response types are allowed.
@@ -129,7 +129,7 @@ public class Client
     /// <summary>
     /// Specifies logout URI at client for HTTP front-channel based logout.
     /// </summary>
-    public string FrontChannelLogoutUri { get; set; }
+    public string? FrontChannelLogoutUri { get; set; }
 
     /// <summary>
     /// Specifies if the user's session id should be sent to the FrontChannelLogoutUri. Defaults to <c>true</c>.
@@ -139,7 +139,7 @@ public class Client
     /// <summary>
     /// Specifies logout URI at client for HTTP back-channel based logout.
     /// </summary>
-    public string BackChannelLogoutUri { get; set; }
+    public string? BackChannelLogoutUri { get; set; }
 
     /// <summary>
     /// Specifies if the user's session id should be sent to the BackChannelLogoutUri. Defaults to <c>true</c>.
@@ -198,13 +198,34 @@ public class Client
     public int? ConsentLifetime { get; set; } = null;
 
     /// <summary>
-    /// ReUse: the refresh token handle will stay the same when refreshing tokens
-    /// OneTime: the refresh token handle will be updated when refreshing tokens
+    /// Lifetime of pushed authorization requests for this client. If this lifetime is set, it takes precedence over
+    /// the global configuration in PushedAuthorizationOptions. Defaults to null, which means the global
+    /// configuration will be used.
     /// </summary>
-    public TokenUsage RefreshTokenUsage { get; set; } = TokenUsage.OneTimeOnly;
+    public int? PushedAuthorizationLifetime { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the access token (and its claims) should be updated on a refresh token request.
+    /// Specifies whether pushed authorization requests are required for this client. There is also a global
+    /// configuration flag to require pushed authorization in PushedAuthorizationOptions. Pushed authorization is
+    /// required for a client if either the global configuration flag is enabled or if this flag is set for that client.
+    /// </summary>
+    public bool RequirePushedAuthorization { get; set; } = false;
+
+    /// <summary>
+    /// Specifies if tokens should be rotated when they are used. Defaults to
+    /// reusable tokens.
+    /// <para>
+    /// ReUse: the refresh token handle will stay the same when refreshing
+    /// tokens
+    /// </para>
+    /// <para>
+    /// OneTime: the refresh token handle will be updated when refreshing tokens
+    /// </para>
+    /// </summary>
+    public TokenUsage RefreshTokenUsage { get; set; } = TokenUsage.ReUse;
+
+    /// <summary>
+    /// Specifies whether the access token (and its claims) should be updated on a refresh token request.
     /// Defaults to <c>false</c>.
     /// </summary>
     /// <value>
@@ -272,7 +293,7 @@ public class Client
     /// <summary>
     /// Gets or sets a salt value used in pair-wise subjectId generation for users of this client.
     /// </summary>
-    public string PairWiseSubjectSalt { get; set; }
+    public string? PairWiseSubjectSalt { get; set; }
 
     /// <summary>
     /// The maximum duration (in seconds) since the last time the user authenticated.
@@ -285,7 +306,7 @@ public class Client
     /// <value>
     /// The type of the device flow user code.
     /// </value>
-    public string UserCodeType { get; set; }
+    public string? UserCodeType { get; set; }
 
     /// <summary>
     /// Gets or sets the device code lifetime.
@@ -296,12 +317,38 @@ public class Client
     public int DeviceCodeLifetime { get; set; } = 300;
 
     /// <summary>
+    /// Gets or sets the backchannel authentication request lifetime in seconds.
+    /// </summary>
+    public int? CibaLifetime { get; set; }
+
+    /// <summary>
+    /// Gets or sets the backchannel polling interval in seconds.
+    /// </summary>
+    public int? PollingInterval { get; set; }
+
+
+    /// <summary>
+    /// When enabled, the client's token lifetimes (e.g. refresh tokens) will be tied to the user's session lifetime.
+    /// This means when the user logs out, any revokable tokens will be removed.
+    /// If using server-side sessions, expired sessions will also remove any revokable tokens, and backchannel logout will be triggered.
+    /// This client's setting overrides the global CoordinateTokensWithUserSession configuration setting.
+    /// </summary>
+    public bool? CoordinateLifetimeWithUserSession { get; set; }
+
+    /// <summary>
     /// Gets or sets the allowed CORS origins for JavaScript clients.
     /// </summary>
     /// <value>
     /// The allowed CORS origins.
     /// </value>
     public ICollection<string> AllowedCorsOrigins { get; set; } = new HashSet<string>();
+
+    /// <summary>
+    /// Gets of sets a URI that can be used to initiate login from the
+    /// IdentityServer host or a third party. See
+    /// https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin
+    /// </summary>
+    public string? InitiateLoginUri { get; set; }
 
     /// <summary>
     /// Gets or sets the custom properties for the client.
@@ -315,7 +362,7 @@ public class Client
     /// Validates the grant types.
     /// </summary>
     /// <param name="grantTypes">The grant types.</param>
-    /// <exception cref="System.InvalidOperationException">
+    /// <exception cref="InvalidOperationException">
     /// Grant types list is empty
     /// or
     /// Grant types cannot contain spaces

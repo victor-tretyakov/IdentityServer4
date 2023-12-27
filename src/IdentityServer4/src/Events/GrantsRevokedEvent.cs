@@ -17,9 +17,9 @@ public class GrantsRevokedEvent : Event
     /// <param name="clientId">The client identifier.</param>
     public GrantsRevokedEvent(string subjectId, string clientId)
         : base(EventCategories.Grants,
-              "Grants revoked",
-              EventTypes.Information,
-              EventIds.GrantsRevoked)
+            "Grants revoked",
+            EventTypes.Information,
+            EventIds.GrantsRevoked)
     {
         SubjectId = subjectId;
         ClientId = clientId;

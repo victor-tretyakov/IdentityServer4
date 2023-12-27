@@ -2,8 +2,6 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System;
-using System.Threading.Tasks;
 using FluentAssertions;
 using IdentityServer.UnitTests.Common;
 using IdentityServer.UnitTests.Validation.Setup;
@@ -12,6 +10,8 @@ using IdentityServer4.Models;
 using IdentityServer4.Stores;
 using IdentityServer4.Validation;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace IdentityServer.UnitTests.Validation.Secrets;
@@ -19,8 +19,8 @@ namespace IdentityServer.UnitTests.Validation.Secrets;
 public class MutualTlsSecretValidation
 {
     private const string Category = "Secrets - MutualTls Secret Validation";
-   
-    private readonly IClientStore _clients = new InMemoryClientStore(ClientValidationTestClients.Get());
+
+    private IClientStore _clients = new InMemoryClientStore(ClientValidationTestClients.Get());
 
     ///////////////////
     // thumbprints

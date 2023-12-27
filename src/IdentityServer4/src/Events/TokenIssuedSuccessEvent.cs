@@ -7,7 +7,6 @@ using IdentityServer4.Extensions;
 using IdentityServer4.ResponseHandling;
 using IdentityServer4.Validation;
 using System.Collections.Generic;
-using static IdentityServer4.Constants;
 
 namespace IdentityServer4.Events;
 
@@ -27,24 +26,28 @@ public class TokenIssuedSuccessEvent : Event
         ClientId = response.Request.ClientId;
         ClientName = response.Request.Client.ClientName;
         RedirectUri = response.RedirectUri;
-        Endpoint = EndpointNames.Authorize;
+        Endpoint = IdentityServerConstants.EndpointNames.Authorize;
         SubjectId = response.Request.Subject.GetSubjectId();
         Scopes = response.Scope;
         GrantType = response.Request.GrantType;
 
         var tokens = new List<Token>();
+
         if (response.IdentityToken != null)
         {
             tokens.Add(new Token(OidcConstants.TokenTypes.IdentityToken, response.IdentityToken));
         }
+
         if (response.Code != null)
         {
             tokens.Add(new Token(OidcConstants.ResponseTypes.Code, response.Code));
         }
+
         if (response.AccessToken != null)
         {
             tokens.Add(new Token(OidcConstants.TokenTypes.AccessToken, response.AccessToken));
         }
+
         Tokens = tokens;
     }
 
@@ -58,13 +61,13 @@ public class TokenIssuedSuccessEvent : Event
     {
         ClientId = request.ValidatedRequest.Client.ClientId;
         ClientName = request.ValidatedRequest.Client.ClientName;
-        Endpoint = EndpointNames.Token;
+        Endpoint = IdentityServerConstants.EndpointNames.Token;
         SubjectId = request.ValidatedRequest.Subject?.GetSubjectId();
         GrantType = request.ValidatedRequest.GrantType;
 
         if (GrantType == OidcConstants.GrantTypes.RefreshToken)
         {
-            Scopes = request.ValidatedRequest.RefreshToken.AccessToken.Scopes.ToSpaceSeparatedString();
+            Scopes = request.ValidatedRequest.RefreshToken.AuthorizedScopes.ToSpaceSeparatedString();
         }
         else if (GrantType == OidcConstants.GrantTypes.AuthorizationCode)
         {
@@ -76,18 +79,22 @@ public class TokenIssuedSuccessEvent : Event
         }
 
         var tokens = new List<Token>();
+
         if (response.IdentityToken != null)
         {
             tokens.Add(new Token(OidcConstants.TokenTypes.IdentityToken, response.IdentityToken));
         }
+
         if (response.RefreshToken != null)
         {
             tokens.Add(new Token(OidcConstants.TokenTypes.RefreshToken, response.RefreshToken));
         }
+
         if (response.AccessToken != null)
         {
             tokens.Add(new Token(OidcConstants.TokenTypes.AccessToken, response.AccessToken));
         }
+
         Tokens = tokens;
     }
 
@@ -96,9 +103,9 @@ public class TokenIssuedSuccessEvent : Event
     /// </summary>
     protected TokenIssuedSuccessEvent()
         : base(EventCategories.Token,
-              "Token Issued Success",
-              EventTypes.Success,
-              EventIds.TokenIssuedSuccess)
+            "Token Issued Success",
+            EventTypes.Success,
+            EventIds.TokenIssuedSuccess)
     {
     }
 

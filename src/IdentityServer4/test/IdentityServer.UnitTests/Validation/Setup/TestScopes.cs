@@ -1,50 +1,65 @@
-﻿// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
+// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
 using System.Collections.Generic;
 using IdentityServer4.Models;
 
-namespace IdentityServer.UnitTests.Validation.Setup
+namespace IdentityServer.UnitTests.Validation.Setup;
+
+internal class TestScopes
 {
-    internal class TestScopes
+    public static IEnumerable<IdentityResource> GetIdentity()
     {
-        public static IEnumerable<IdentityResource> GetIdentity()
+        return new IdentityResource[]
         {
-            return new IdentityResource[]
-            {
-                new IdentityResources.OpenId(),
-                new IdentityResources.Profile()
-            };
-        }
+            new IdentityResources.OpenId(),
+            new IdentityResources.Profile()
+        };
+    }
 
-        public static IEnumerable<ApiResource> GetApis()
+    public static IEnumerable<ApiResource> GetApis()
+    {
+        return new ApiResource[]
         {
-            return new ApiResource[]
+            new ApiResource
             {
-                new ApiResource
-                {
-                    Name = "api",
-                    Scopes =  { "resource", "resource2" }
-                }
-            };
-        }
+                Name = "api",
+                Scopes =  { "resource", "resource2" }
+            },
+            new ApiResource
+            {
+                Name = "urn:api1",
+                Scopes =  { "scope1" }
+            },
+            new ApiResource
+            {
+                Name = "urn:api2",
+                Scopes =  { "scope1" }
+            },
+            new ApiResource
+            {
+                Name = "urn:api3",
+                Scopes =  { "scope1" }
+            },
+        };
+    }
 
-        public static IEnumerable<ApiScope> GetScopes()
+    public static IEnumerable<ApiScope> GetScopes()
+    {
+        return new ApiScope[]
         {
-            return new ApiScope[]
+            new ApiScope
             {
-                new ApiScope
-                {
-                    Name = "resource",
-                    Description = "resource scope"
-                },
-                new ApiScope
-                {
-                    Name = "resource2",
-                    Description = "resource scope"
-                }
-            };
-        }
+                Name = "resource",
+                Description = "resource scope"
+            },
+            new ApiScope
+            {
+                Name = "resource2",
+                Description = "resource scope"
+            },
+            new ApiScope("scope1")
+        };
     }
 }

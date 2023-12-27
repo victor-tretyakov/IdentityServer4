@@ -1,13 +1,13 @@
 // Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
+using FluentAssertions;
+using IdentityServer4.Models;
+using IdentityServer4.Stores;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using FluentAssertions;
-using IdentityServer4.Models;
-using IdentityServer4.Stores;
 using Xunit;
 
 namespace IdentityServer.UnitTests.Extensions;
@@ -25,7 +25,7 @@ public class IResourceStoreExtensionsTests
         };
 
         Func<Task> a = () => store.GetAllEnabledResourcesAsync();
-        (await a.Should().ThrowAsync<Exception>()).And.Message.ToLowerInvariant().Should().Contain("duplicate").And.Contain("identity scopes");
+        await a.Should().ThrowAsync<Exception>().WithMessage("duplicate identity scopes*");
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class IResourceStoreExtensionsTests
         };
 
         Func<Task> a = () => store.GetAllEnabledResourcesAsync();
-        (await a.Should().ThrowAsync<Exception>()).And.Message.ToLowerInvariant().Should().Contain("duplicate").And.Contain("api resources");
+        await a.Should().ThrowAsync<Exception>().WithMessage("duplicate api resources*");
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class IResourceStoreExtensionsTests
         };
 
         Func<Task> a = () => store.FindResourcesByScopeAsync(new string[] { "A" });
-        (await a.Should().ThrowAsync<Exception>()).And.Message.ToLowerInvariant().Should().Contain("duplicate").And.Contain("identity scopes");
+        await a.Should().ThrowAsync<Exception>().WithMessage("duplicate identity scopes*");
     }
 
     [Fact]
@@ -96,13 +96,13 @@ public class IResourceStoreExtensionsTests
     {
         var store = new MockResourceStore()
         {
-            ApiResources = { 
+            ApiResources = {
                 new ApiResource { Name = "api1", Scopes = { "a" } },
                 new ApiResource() { Name = "api2", Scopes = { "a" } },
             },
-            ApiScopes = { 
-                new ApiScope("a") 
-            } 
+            ApiScopes = {
+                new ApiScope("a")
+            }
         };
 
         var result = await store.FindResourcesByScopeAsync(new string[] { "a" });
@@ -128,8 +128,8 @@ public class IResourceStoreExtensionsTests
     {
         var store = new MockResourceStore()
         {
-            ApiResources = { 
-                new ApiResource { 
+            ApiResources = {
+                new ApiResource {
                     Name = "api1", Scopes = { "a", "a" }
                 }
             },
@@ -151,8 +151,8 @@ public class IResourceStoreExtensionsTests
         public Task<IEnumerable<ApiResource>> FindApiResourcesByNameAsync(IEnumerable<string> names)
         {
             var apis = from a in ApiResources
-                      where names.Contains(a.Name)
-                      select a;
+                       where names.Contains(a.Name)
+                       select a;
             return Task.FromResult(apis);
         }
 

@@ -1,16 +1,15 @@
-﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
+using System.Threading.Tasks;
 
-namespace IdentityServer.UnitTests.Common
+namespace IdentityServer.UnitTests.Common;
+
+internal class MockAuthenticationHandlerProvider : IAuthenticationHandlerProvider
 {
-    internal class MockAuthenticationHandlerProvider : IAuthenticationHandlerProvider
-    {
-        public IAuthenticationHandler Handler { get; set; }
+    public IAuthenticationHandler Handler { get; set; }
 
-        public Task<IAuthenticationHandler> GetHandlerAsync(HttpContext context, string authenticationScheme)
-        {
-            return Task.FromResult(Handler);
-        }
+    public Task<IAuthenticationHandler> GetHandlerAsync(HttpContext context, string authenticationScheme)
+    {
+        return Task.FromResult(Handler);
     }
 }

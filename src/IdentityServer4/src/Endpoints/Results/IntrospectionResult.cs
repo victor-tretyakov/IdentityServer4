@@ -15,7 +15,7 @@ namespace IdentityServer4.Endpoints.Results;
 /// Result for introspection
 /// </summary>
 /// <seealso cref="IEndpointResult" />
-public class IntrospectionResult : IEndpointResult
+public class IntrospectionResult : EndpointResult<IntrospectionResult>
 {
     /// <summary>
     /// Gets the result.
@@ -29,21 +29,20 @@ public class IntrospectionResult : IEndpointResult
     /// Initializes a new instance of the <see cref="IntrospectionResult"/> class.
     /// </summary>
     /// <param name="entries">The result.</param>
-    /// <exception cref="ArgumentNullException">result</exception>
+    /// <exception cref="System.ArgumentNullException">result</exception>
     public IntrospectionResult(Dictionary<string, object> entries)
     {
         Entries = entries ?? throw new ArgumentNullException(nameof(entries));
     }
+}
 
-    /// <summary>
-    /// Executes the result.
-    /// </summary>
-    /// <param name="context">The HTTP context.</param>
-    /// <returns></returns>
-    public Task ExecuteAsync(HttpContext context)
+
+class IntrospectionHttpWriter : IHttpResponseWriter<IntrospectionResult>
+{
+    public Task WriteHttpResponse(IntrospectionResult result, HttpContext context)
     {
         context.Response.SetNoCache();
-        
-        return context.Response.WriteJsonAsync(Entries);
+
+        return context.Response.WriteJsonAsync(result.Entries);
     }
 }

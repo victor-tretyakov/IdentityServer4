@@ -2,12 +2,12 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using FluentAssertions;
 using IdentityServer.UnitTests.Common;
 using IdentityServer4.Models;
 using IdentityServer4.Services;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace IdentityServer.UnitTests.Services.InMemory;
@@ -36,7 +36,8 @@ public class InMemoryCorsPolicyServiceTests
             }
         });
 
-        (await _subject.IsOriginAllowedAsync("http://foo")).Should().Be(true);
+        var result = await _subject.IsOriginAllowedAsync("http://foo");
+        result.Should().BeTrue();
     }
 
     [Theory]
@@ -53,7 +54,8 @@ public class InMemoryCorsPolicyServiceTests
                 clientOrigin
             }
         });
-        (await _subject.IsOriginAllowedAsync("http://bar")).Should().Be(false);
+        var result = await _subject.IsOriginAllowedAsync("http://bar");
+        result.Should().Be(false);
     }
 
     [Fact]
@@ -69,12 +71,13 @@ public class InMemoryCorsPolicyServiceTests
                 "http://baz"
             }
         });
-        (await _subject.IsOriginAllowedAsync("http://bar")).Should().Be(true);
+        var result = await _subject.IsOriginAllowedAsync("http://bar");
+        result.Should().Be(true);
     }
 
     [Fact]
     [Trait("Category", Category)]
-    public async Task client_has_many_origins_and_origin_is_in_not_list_should_not_allow_origin()
+    public async Task client_has_many_origins_and_origin_is_in_not_list_should_not_allow_originAsync()
     {
         _clients.Add(new Client
         {
@@ -85,12 +88,13 @@ public class InMemoryCorsPolicyServiceTests
                 "http://baz"
             }
         });
-        (await _subject.IsOriginAllowedAsync("http://quux")).Should().Be(false);
+        var result = await _subject.IsOriginAllowedAsync("http://quux");
+        result.Should().Be(false);
     }
 
     [Fact]
     [Trait("Category", Category)]
-    public async Task many_clients_have_same_origins_should_allow_origin()
+    public async Task many_clients_have_same_origins_should_allow_originAsync()
     {
         _clients.AddRange(new Client[] {
             new Client
@@ -108,12 +112,13 @@ public class InMemoryCorsPolicyServiceTests
                 }
             }
         });
-        (await _subject.IsOriginAllowedAsync("http://foo")).Should().Be(true);
+        var result = await _subject.IsOriginAllowedAsync("http://foo");
+        result.Should().BeTrue();
     }
 
     [Fact]
     [Trait("Category", Category)]
-    public async Task handle_invalid_cors_origin_format_exception()
+    public async Task handle_invalid_cors_origin_format_exceptionAsync()
     {
         _clients.AddRange(new Client[] {
             new Client
@@ -133,6 +138,7 @@ public class InMemoryCorsPolicyServiceTests
                 }
             }
         });
-        (await _subject.IsOriginAllowedAsync("http://bar")).Should().Be(true);
+        var result = await _subject.IsOriginAllowedAsync("http://bar");
+        result.Should().BeTrue();
     }
 }

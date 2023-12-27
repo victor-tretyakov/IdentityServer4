@@ -28,7 +28,7 @@ internal class EndpointRouter : IEndpointRouter
     {
         if (context == null) throw new ArgumentNullException(nameof(context));
 
-        foreach(var endpoint in _endpoints)
+        foreach (var endpoint in _endpoints)
         {
             var path = endpoint.Path;
             if (context.Request.Path.Equals(path, StringComparison.OrdinalIgnoreCase))

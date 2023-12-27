@@ -4,6 +4,7 @@
 
 using IdentityServer4.Extensions;
 using IdentityServer4.Validation;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -42,7 +43,7 @@ public static class ResourceExtensions
         {
             names.Add(IdentityServerConstants.StandardScopes.OfflineAccess);
         }
-        
+
         return names;
     }
 
@@ -105,7 +106,7 @@ public static class ResourceExtensions
     {
         var apis = apiResources.ToList();
 
-        if (apis.IsNullOrEmpty())
+        if (IEnumerableExtensions.IsNullOrEmpty(apis))
         {
             return new List<string>();
         }
@@ -115,7 +116,7 @@ public static class ResourceExtensions
         {
             return apis.First().AllowedAccessTokenSigningAlgorithms;
         }
-        
+
         var allAlgorithms = apis.Where(r => r.AllowedAccessTokenSigningAlgorithms.Any()).Select(r => r.AllowedAccessTokenSigningAlgorithms).ToList();
 
         // resources need to agree on allowed signing algorithms
@@ -137,5 +138,28 @@ public static class ResourceExtensions
     private static IEnumerable<T> IntersectLists<T>(IEnumerable<IEnumerable<T>> lists)
     {
         return lists.Aggregate((l1, l2) => l1.Intersect(l2));
+    }
+
+    internal static bool AreValidResourceIndicatorFormat(this IEnumerable<string> list, ILogger logger)
+    {
+        if (list != null)
+        {
+            foreach (var item in list)
+            {
+                if (!item.IsUri())
+                {
+                    logger.LogDebug("Resource indicator {resource} is not a valid URI.", item);
+                    return false;
+                }
+
+                if (item.Contains("#"))
+                {
+                    logger.LogDebug("Resource indicator {resource} must not contain a fragment component.", item);
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 }

@@ -39,7 +39,7 @@ public class Token
     /// <summary>
     /// Specifies the confirmation method of the token. This value, if set, will become the cnf claim.
     /// </summary>
-    public string Confirmation { get; set; }
+    public string? Confirmation { get; set; }
 
     /// <summary>
     /// Gets or sets the audiences.
@@ -48,15 +48,15 @@ public class Token
     /// The audiences.
     /// </value>
     public ICollection<string> Audiences { get; set; } = new HashSet<string>();
-    
+
     /// <summary>
     /// Gets or sets the issuer.
     /// </summary>
     /// <value>
     /// The issuer.
     /// </value>
-    public string Issuer { get; set; }
-    
+    public string Issuer { get; set; } = default!;
+
     /// <summary>
     /// Gets or sets the creation time.
     /// </summary>
@@ -64,7 +64,7 @@ public class Token
     /// The creation time.
     /// </value>
     public DateTime CreationTime { get; set; }
-    
+
     /// <summary>
     /// Gets or sets the lifetime.
     /// </summary>
@@ -87,7 +87,7 @@ public class Token
     /// <value>
     /// The ID of the client.
     /// </value>
-    public string ClientId { get; set; }
+    public string ClientId { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the type of access token of the client
@@ -103,8 +103,13 @@ public class Token
     /// <value>
     /// The description.
     /// </value>
-    public string Description { get; set; }
-    
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Indicates if the token should have a 'jti' claim value.
+    /// </summary>
+    public bool IncludeJwtId { get; set; }
+
     /// <summary>
     /// Gets or sets the claims.
     /// </summary>
@@ -119,7 +124,7 @@ public class Token
     /// <value>
     /// The version.
     /// </value>
-    public int Version { get; set; } = 4;
+    public int Version { get; set; } = 5;
 
     /// <summary>
     /// Gets the subject identifier.
@@ -127,7 +132,7 @@ public class Token
     /// <value>
     /// The subject identifier.
     /// </value>
-    public string SubjectId => Claims.Where(x => x.Type == JwtClaimTypes.Subject).Select(x => x.Value).SingleOrDefault();
+    public string? SubjectId => Claims.Where(x => x.Type == JwtClaimTypes.Subject).Select(x => x.Value).SingleOrDefault();
 
     /// <summary>
     /// Gets the session identifier.
@@ -135,7 +140,7 @@ public class Token
     /// <value>
     /// The session identifier.
     /// </value>
-    public string SessionId => Claims.Where(x => x.Type == JwtClaimTypes.SessionId).Select(x => x.Value).SingleOrDefault();
+    public string? SessionId => Claims.Where(x => x.Type == JwtClaimTypes.SessionId).Select(x => x.Value).SingleOrDefault();
 
     /// <summary>
     /// Gets the scopes.

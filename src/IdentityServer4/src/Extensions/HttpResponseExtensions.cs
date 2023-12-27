@@ -19,7 +19,6 @@ public static class HttpResponseExtensions
     {
         var json = ObjectSerializer.ToString(o);
         await response.WriteJsonAsync(json, contentType);
-        await response.Body.FlushAsync();
     }
 
     public static async Task WriteJsonAsync(this HttpResponse response, string json, string contentType = null)
@@ -39,7 +38,7 @@ public static class HttpResponseExtensions
         {
             if (!response.Headers.ContainsKey("Cache-Control"))
             {
-                response.Headers.Add("Cache-Control", $"max-age={maxAge}");
+                response.Headers.Append("Cache-Control", $"max-age={maxAge}");
             }
 
             if (varyBy?.Any() == true)
@@ -58,7 +57,7 @@ public static class HttpResponseExtensions
     {
         if (!response.Headers.ContainsKey("Cache-Control"))
         {
-            response.Headers.Add("Cache-Control", "no-store, no-cache, max-age=0");
+            response.Headers.Append("Cache-Control", "no-store, no-cache, max-age=0");
         }
         else
         {
@@ -67,7 +66,7 @@ public static class HttpResponseExtensions
 
         if (!response.Headers.ContainsKey("Pragma"))
         {
-            response.Headers.Add("Pragma", "no-cache");
+            response.Headers.Append("Pragma", "no-cache");
         }
     }
 
@@ -76,16 +75,6 @@ public static class HttpResponseExtensions
         response.ContentType = "text/html; charset=UTF-8";
         await response.WriteAsync(html, Encoding.UTF8);
         await response.Body.FlushAsync();
-    }
-
-    public static void RedirectToAbsoluteUrl(this HttpResponse response, string url)
-    {
-        if (url.IsLocalUrl())
-        {
-            if (url.StartsWith("~/")) url = url.Substring(1);
-            url = response.HttpContext.GetIdentityServerBaseUrl().EnsureTrailingSlash() + url.RemoveLeadingSlash();
-        }
-        response.Redirect(url);
     }
 
     public static void AddScriptCspHeaders(this HttpResponse response, CspOptions options, string hash)
@@ -113,11 +102,11 @@ public static class HttpResponseExtensions
     {
         if (!headers.ContainsKey("Content-Security-Policy"))
         {
-            headers.Add("Content-Security-Policy", cspHeader);
+            headers.Append("Content-Security-Policy", cspHeader);
         }
         if (options.AddDeprecatedHeader && !headers.ContainsKey("X-Content-Security-Policy"))
         {
-            headers.Add("X-Content-Security-Policy", cspHeader);
+            headers.Append("X-Content-Security-Policy", cspHeader);
         }
     }
 }

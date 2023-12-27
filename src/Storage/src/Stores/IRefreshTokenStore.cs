@@ -32,7 +32,7 @@ public interface IRefreshTokenStore
     /// </summary>
     /// <param name="refreshTokenHandle">The refresh token handle.</param>
     /// <returns></returns>
-    Task<RefreshToken> GetRefreshTokenAsync(string refreshTokenHandle);
+    Task<RefreshToken?> GetRefreshTokenAsync(string refreshTokenHandle);
 
     /// <summary>
     /// Removes the refresh token.

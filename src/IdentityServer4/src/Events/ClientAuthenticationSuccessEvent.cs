@@ -17,9 +17,9 @@ public class ClientAuthenticationSuccessEvent : Event
     /// <param name="authenticationMethod">The authentication method.</param>
     public ClientAuthenticationSuccessEvent(string clientId, string authenticationMethod)
         : base(EventCategories.Authentication,
-              "Client Authentication Success",
-              EventTypes.Success, 
-              EventIds.ClientAuthenticationSuccess)
+            "Client Authentication Success",
+            EventTypes.Success,
+            EventIds.ClientAuthenticationSuccess)
     {
         ClientId = clientId;
         AuthenticationMethod = authenticationMethod;

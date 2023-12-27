@@ -30,8 +30,6 @@ internal class IdentityServerAuthenticationService : IAuthenticationService
     private readonly IAuthenticationSchemeProvider _schemes;
     private readonly ISystemClock _clock;
     private readonly IUserSession _session;
-    private readonly IBackChannelLogoutService _backChannelLogoutService;
-    private readonly IdentityServerOptions _options;
     private readonly ILogger<IdentityServerAuthenticationService> _logger;
 
     public IdentityServerAuthenticationService(
@@ -39,17 +37,13 @@ internal class IdentityServerAuthenticationService : IAuthenticationService
         IAuthenticationSchemeProvider schemes,
         ISystemClock clock,
         IUserSession session,
-        IBackChannelLogoutService backChannelLogoutService,
-        IdentityServerOptions options,
         ILogger<IdentityServerAuthenticationService> logger)
     {
         _inner = decorator.Instance;
-        
+
         _schemes = schemes;
         _clock = clock;
         _session = session;
-        _backChannelLogoutService = backChannelLogoutService;
-        _options = options;
         _logger = logger;
     }
 
@@ -106,7 +100,7 @@ internal class IdentityServerAuthenticationService : IAuthenticationService
         return _inner.ForbidAsync(context, scheme, properties);
     }
 
-    private void AssertRequiredClaims(ClaimsPrincipal principal)
+    private static void AssertRequiredClaims(ClaimsPrincipal principal)
     {
         // for now, we don't allow more than one identity in the principal/cookie
         if (principal.Identities.Count() != 1) throw new InvalidOperationException("only a single identity supported");

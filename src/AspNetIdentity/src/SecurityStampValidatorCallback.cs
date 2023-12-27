@@ -3,8 +3,8 @@
 
 
 using Microsoft.AspNetCore.Identity;
-using System.Threading.Tasks;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace IdentityServer4.AspNetIdentity;
 

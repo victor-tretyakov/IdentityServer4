@@ -21,19 +21,20 @@ public class TokenIntrospectionSuccessEvent : Event
     /// <param name="result">The result.</param>
     public TokenIntrospectionSuccessEvent(IntrospectionRequestValidationResult result)
         : base(EventCategories.Token,
-              "Token Introspection Success",
-              EventTypes.Success,
-              EventIds.TokenIntrospectionSuccess)
+            "Token Introspection Success",
+            EventTypes.Success,
+            EventIds.TokenIntrospectionSuccess)
     {
-        ApiName = result.Api.Name;
+        ApiName = result.Api?.Name;
+        ClientName = result.Client?.ClientName;
         IsActive = result.IsActive;
 
         if (result.Token.IsPresent())
         {
             Token = Obfuscate(result.Token);
         }
-        
-        if (!result.Claims.IsNullOrEmpty())
+
+        if (!IEnumerableExtensions.IsNullOrEmpty(result.Claims))
         {
             ClaimTypes = result.Claims.Select(c => c.Type).Distinct();
             TokenScopes = result.Claims.Where(c => c.Type == "scope").Select(c => c.Value);
@@ -47,6 +48,14 @@ public class TokenIntrospectionSuccessEvent : Event
     /// The name of the API.
     /// </value>
     public string ApiName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of the client.
+    /// </summary>
+    /// <value>
+    /// The name of the client.
+    /// </value>
+    public string ClientName { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether this instance is active.

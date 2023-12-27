@@ -12,6 +12,7 @@ using IdentityServer4.Services;
 using IdentityServer4.Validation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using System.IO;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -72,9 +73,15 @@ internal class TokenRevocationEndpoint : IEndpointHandler
             return new StatusCodeResult(HttpStatusCode.UnsupportedMediaType);
         }
 
-        var response = await ProcessRevocationRequestAsync(context);
-
-        return response;
+        try
+        {
+            return await ProcessRevocationRequestAsync(context);
+        }
+        catch (InvalidDataException ex)
+        {
+            _logger.LogWarning(ex, "Invalid HTTP request for revocation endpoint");
+            return new StatusCodeResult(HttpStatusCode.BadRequest);
+        }
     }
 
     private async Task<IEndpointResult> ProcessRevocationRequestAsync(HttpContext context)
@@ -83,10 +90,10 @@ internal class TokenRevocationEndpoint : IEndpointHandler
 
         // validate client
         var clientValidationResult = await _clientValidator.ValidateAsync(context);
-
         if (clientValidationResult.IsError)
         {
-            return new TokenRevocationErrorResult(OidcConstants.TokenErrors.InvalidClient);
+            var error = clientValidationResult.Error ?? OidcConstants.TokenErrors.InvalidClient;
+            return new TokenRevocationErrorResult(error);
         }
 
         _logger.LogTrace("Client validation successful");

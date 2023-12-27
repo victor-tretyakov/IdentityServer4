@@ -18,10 +18,10 @@ public class UnhandledExceptionEvent : Event
     /// <param name="ex">The ex.</param>
     public UnhandledExceptionEvent(Exception ex)
         : base(EventCategories.Error,
-              "Unhandled Exception",
-              EventTypes.Error, 
-              EventIds.UnhandledException,
-              ex.Message)
+            "Unhandled Exception",
+            EventTypes.Error,
+            EventIds.UnhandledException,
+            ex.Message)
     {
         Details = ex.ToString();
     }

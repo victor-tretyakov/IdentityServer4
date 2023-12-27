@@ -1,9 +1,6 @@
 // Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
-
-using static IdentityServer4.Constants;
-
 namespace IdentityServer4.Events;
 
 /// <summary>
@@ -12,8 +9,6 @@ namespace IdentityServer4.Events;
 /// <seealso cref="Event" />
 public class UserLoginSuccessEvent : Event
 {
-    // todo: consolidate ctors in 3.0
-
     /// <summary>
     /// Initializes a new instance of the <see cref="UserLoginSuccessEvent"/> class.
     /// </summary>
@@ -36,7 +31,7 @@ public class UserLoginSuccessEvent : Event
         }
         else
         {
-            Endpoint = EndpointNames.Token;
+            Endpoint = IdentityServerConstants.EndpointNames.Token;
         }
         ClientId = clientId;
     }
@@ -63,7 +58,7 @@ public class UserLoginSuccessEvent : Event
         }
         else
         {
-            Endpoint = EndpointNames.Token;
+            Endpoint = IdentityServerConstants.EndpointNames.Token;
         }
     }
 
@@ -72,9 +67,9 @@ public class UserLoginSuccessEvent : Event
     /// </summary>
     protected UserLoginSuccessEvent()
         : base(EventCategories.Authentication,
-              "User Login Success",
-              EventTypes.Success,
-              EventIds.UserLoginSuccess)
+            "User Login Success",
+            EventTypes.Success,
+            EventIds.UserLoginSuccess)
     {
     }
 
@@ -125,7 +120,7 @@ public class UserLoginSuccessEvent : Event
     /// The endpoint.
     /// </value>
     public string Endpoint { get; set; }
-    
+
     /// <summary>
     /// Gets or sets the client id.
     /// </summary>

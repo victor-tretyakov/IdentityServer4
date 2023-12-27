@@ -4,7 +4,6 @@
 
 using IdentityServer4.Extensions;
 using IdentityServer4.Validation;
-using static IdentityServer4.Constants;
 
 namespace IdentityServer4.Events;
 
@@ -37,7 +36,7 @@ public class TokenIssuedFailureEvent : Event
             }
         }
 
-        Endpoint = EndpointNames.Authorize;
+        Endpoint = IdentityServerConstants.EndpointNames.Authorize;
         Error = error;
         ErrorDescription = description;
     }
@@ -62,7 +61,7 @@ public class TokenIssuedFailureEvent : Event
             }
         }
 
-        Endpoint = EndpointNames.Token;
+        Endpoint = IdentityServerConstants.EndpointNames.Token;
         Error = result.Error;
         ErrorDescription = result.ErrorDescription;
     }
@@ -72,9 +71,9 @@ public class TokenIssuedFailureEvent : Event
     /// </summary>
     protected TokenIssuedFailureEvent()
         : base(EventCategories.Token,
-              "Token Issued Failure",
-              EventTypes.Failure,
-              EventIds.TokenIssuedFailure)
+            "Token Issued Failure",
+            EventTypes.Failure,
+            EventIds.TokenIssuedFailure)
     {
     }
 

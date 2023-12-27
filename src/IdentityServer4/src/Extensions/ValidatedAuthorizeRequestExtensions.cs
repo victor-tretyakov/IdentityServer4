@@ -6,6 +6,7 @@ using IdentityModel;
 using IdentityServer4.Extensions;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -18,8 +19,34 @@ public static class ValidatedAuthorizeRequestExtensions
 {
     public static void RemovePrompt(this ValidatedAuthorizeRequest request)
     {
-        request.PromptModes = Enumerable.Empty<string>();
-        request.Raw.Remove(OidcConstants.AuthorizeRequest.Prompt);
+        var suppress = new StringBuilder();
+        if (request.PromptModes.Contains(OidcConstants.PromptModes.Login))
+        {
+            suppress.Append(OidcConstants.PromptModes.Login);
+        }
+        if (request.PromptModes.Contains(OidcConstants.PromptModes.SelectAccount))
+        {
+            if (suppress.Length > 0)
+            {
+                suppress.Append(' ');
+            }
+            suppress.Append(OidcConstants.PromptModes.SelectAccount);
+        }
+        if (request.PromptModes.Contains(OidcConstants.PromptModes.Create))
+        {
+            if (suppress.Length > 0)
+            {
+                suppress.Append(' ');
+            }
+            suppress.Append(OidcConstants.PromptModes.Create);
+        }
+
+        request.Raw.Add(Constants.ProcessedPrompt, suppress.ToString());
+        request.PromptModes = request.PromptModes.Except(new[] {
+            OidcConstants.PromptModes.Login,
+            OidcConstants.PromptModes.SelectAccount,
+            OidcConstants.PromptModes.Create
+        }).ToArray();
     }
 
     public static string GetPrefixedAcrValue(this ValidatedAuthorizeRequest request, string prefix)
@@ -29,7 +56,7 @@ public static class ValidatedAuthorizeRequestExtensions
 
         if (value != null)
         {
-            value = value[prefix.Length..];
+            value = value.Substring(prefix.Length);
         }
 
         return value;
@@ -89,7 +116,7 @@ public static class ValidatedAuthorizeRequestExtensions
 
     public static void AddAcrValue(this ValidatedAuthorizeRequest request, string value)
     {
-        if (string.IsNullOrWhiteSpace(value)) throw new ArgumentNullException(nameof(value));
+        if (String.IsNullOrWhiteSpace(value)) throw new ArgumentNullException(nameof(value));
 
         request.AuthenticationContextReferenceClasses.Add(value);
         var acr_values = request.AuthenticationContextReferenceClasses.ToSpaceSeparatedString();
@@ -99,13 +126,11 @@ public static class ValidatedAuthorizeRequestExtensions
     public static string GenerateSessionStateValue(this ValidatedAuthorizeRequest request)
     {
         if (request == null) return null;
-
         if (!request.IsOpenIdRequest) return null;
 
         if (request.SessionId == null) return null;
 
         if (request.ClientId.IsMissing()) return null;
-
         if (request.RedirectUri.IsMissing()) return null;
 
         var clientId = request.ClientId;
@@ -113,17 +138,58 @@ public static class ValidatedAuthorizeRequestExtensions
         var salt = CryptoRandom.CreateUniqueId(16, CryptoRandom.OutputFormat.Hex);
 
         var uri = new Uri(request.RedirectUri);
-        var origin = $"{uri.Scheme}://{uri.Host}";
+        var origin = uri.Scheme + "://" + uri.Host;
         if (!uri.IsDefaultPort)
         {
-            origin += $":{uri.Port}";
+            origin += ":" + uri.Port;
         }
 
         var bytes = Encoding.UTF8.GetBytes(clientId + origin + sessionId + salt);
         byte[] hash;
 
-        hash = SHA256.HashData(bytes);
+        using (var sha = SHA256.Create())
+        {
+            hash = sha.ComputeHash(bytes);
+        }
 
-        return $"{Base64Url.Encode(hash)}.{salt}";
+        return Base64Url.Encode(hash) + "." + salt;
+    }
+
+    private static NameValueCollection ToOptimizedRawValues(this ValidatedAuthorizeRequest request)
+    {
+        if (request.Raw.AllKeys.Contains(OidcConstants.AuthorizeRequest.Request))
+        {
+            // if we already have a request object in the URL, then we can filter out the duplicate entries in the Raw collection
+            var collection = new NameValueCollection();
+            foreach (var key in request.Raw.AllKeys)
+            {
+                // https://openid.net/specs/openid-connect-core-1_0.html#JWTRequests 
+                // requires client id and response type to always be in URL
+                if (key == OidcConstants.AuthorizeRequest.ClientId ||
+                    key == OidcConstants.AuthorizeRequest.ResponseType ||
+                    request.RequestObjectValues.All(x => x.Type != key))
+                {
+                    foreach (var value in request.Raw.GetValues(key))
+                    {
+                        collection.Add(key, value);
+                    }
+                }
+            }
+
+            return collection;
+        }
+
+        return request.Raw;
+    }
+
+    public static string ToOptimizedQueryString(this ValidatedAuthorizeRequest request)
+    {
+        return request.ToOptimizedRawValues().ToQueryString();
+    }
+
+    [Obsolete("This method is obsolete and will be removed in a future version.")]
+    public static IDictionary<string, string[]> ToOptimizedFullDictionary(this ValidatedAuthorizeRequest request)
+    {
+        return request.ToOptimizedRawValues().ToFullDictionary();
     }
 }

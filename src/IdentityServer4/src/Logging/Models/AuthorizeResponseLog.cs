@@ -18,7 +18,6 @@ internal class AuthorizeResponseLog
     public string Error { get; set; }
     public string ErrorDescription { get; set; }
 
-
     public AuthorizeResponseLog(AuthorizeResponse response)
     {
         ClientId = response.Request?.Client?.ClientId;

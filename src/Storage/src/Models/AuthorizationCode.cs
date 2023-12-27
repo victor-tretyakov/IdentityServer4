@@ -35,7 +35,7 @@ public class AuthorizationCode
     /// <value>
     /// The ID of the client.
     /// </value>
-    public string ClientId { get; set; }
+    public string ClientId { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the subject.
@@ -43,7 +43,7 @@ public class AuthorizationCode
     /// <value>
     /// The subject.
     /// </value>
-    public ClaimsPrincipal Subject { get; set; }
+    public ClaimsPrincipal Subject { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets a value indicating whether this code is an OpenID Connect code.
@@ -52,15 +52,19 @@ public class AuthorizationCode
     /// <c>true</c> if this instance is open identifier; otherwise, <c>false</c>.
     /// </value>
     public bool IsOpenId { get; set; }
-    
+
     /// <summary>
     /// Gets or sets the requested scopes.
     /// </summary>
     /// <value>
     /// The requested scopes.
     /// </value>
-    // todo: brock, change to parsed scopes
-    public IEnumerable<string> RequestedScopes { get; set; }
+    public IEnumerable<string> RequestedScopes { get; set; } = default!;
+
+    /// <summary>
+    /// Gets or sets the requested resource indicators.
+    /// </summary>
+    public IEnumerable<string>? RequestedResourceIndicators { get; set; }
 
     /// <summary>
     /// Gets or sets the redirect URI.
@@ -68,7 +72,7 @@ public class AuthorizationCode
     /// <value>
     /// The redirect URI.
     /// </value>
-    public string RedirectUri { get; set; }
+    public string RedirectUri { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the nonce.
@@ -76,7 +80,7 @@ public class AuthorizationCode
     /// <value>
     /// The nonce.
     /// </value>
-    public string Nonce { get; set; }
+    public string? Nonce { get; set; }
 
     /// <summary>
     /// Gets or sets the hashed state (to output s_hash claim).
@@ -84,7 +88,7 @@ public class AuthorizationCode
     /// <value>
     /// The hashed state.
     /// </value>
-    public string StateHash { get; set; }
+    public string? StateHash { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether consent was shown.
@@ -100,7 +104,7 @@ public class AuthorizationCode
     /// <value>
     /// The session identifier.
     /// </value>
-    public string SessionId { get; set; }
+    public string SessionId { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the code challenge.
@@ -108,7 +112,7 @@ public class AuthorizationCode
     /// <value>
     /// The code challenge.
     /// </value>
-    public string CodeChallenge { get; set; }
+    public string? CodeChallenge { get; set; }
 
     /// <summary>
     /// Gets or sets the code challenge method.
@@ -116,7 +120,7 @@ public class AuthorizationCode
     /// <value>
     /// The code challenge method
     /// </value>
-    public string CodeChallengeMethod { get; set; }
+    public string? CodeChallengeMethod { get; set; }
 
     /// <summary>
     /// Gets the description the user assigned to the device being authorized.
@@ -124,7 +128,7 @@ public class AuthorizationCode
     /// <value>
     /// The description.
     /// </value>
-    public string Description { get; set; }
+    public string? Description { get; set; }
 
     /// <summary>
     /// Gets or sets properties

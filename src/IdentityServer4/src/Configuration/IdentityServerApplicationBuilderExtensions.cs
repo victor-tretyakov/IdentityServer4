@@ -2,15 +2,19 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
+using IdentityModel;
 using IdentityServer4.Configuration;
 using IdentityServer4.Extensions;
 using IdentityServer4.Hosting;
+using IdentityServer4.Hosting.DynamicProviders;
 using IdentityServer4.Stores;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace Microsoft.AspNetCore.Builder;
@@ -26,13 +30,15 @@ public static class IdentityServerApplicationBuilderExtensions
     /// <param name="app">The application.</param>
     /// <param name="options">The options.</param>
     /// <returns></returns>
-    public static IApplicationBuilder UseIdentityServer(this IApplicationBuilder app, IdentityServerMiddlewareOptions options = null)
+    public static IApplicationBuilder UseIdentityServer(this IApplicationBuilder app, IdentityServerMiddlewareOptions? options = null)
     {
         app.Validate();
 
         app.UseMiddleware<BaseUrlMiddleware>();
 
         app.ConfigureCors();
+
+        app.UseMiddleware<DynamicSchemeAuthenticationMiddleware>();
 
         // it seems ok if we have UseAuthentication more than once in the pipeline --
         // this will just re-run the various callback handlers and the default authN 
@@ -57,28 +63,33 @@ public static class IdentityServerApplicationBuilderExtensions
         }
 
         var logger = loggerFactory.CreateLogger("IdentityServer4.Startup");
-        logger.LogInformation("Starting IdentityServer4 version {version}", typeof(IdentityServerMiddleware).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion);
+        logger.LogInformation("Starting IdentityServer4 version {version} ({netversion})",
+            typeof(IdentityServerMiddleware).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion,
+            RuntimeInformation.FrameworkDescription);
 
-        var scopeFactory = app.ApplicationServices.GetService<IServiceScopeFactory>();
+        var scopeFactory = app.ApplicationServices.GetRequiredService<IServiceScopeFactory>();
 
-        using var scope = scopeFactory.CreateScope();
-
-        var serviceProvider = scope.ServiceProvider;
-
-        TestService(serviceProvider, typeof(IPersistedGrantStore), logger, "No storage mechanism for grants specified. Use the 'AddInMemoryPersistedGrants' extension method to register a development version.");
-        TestService(serviceProvider, typeof(IClientStore), logger, "No storage mechanism for clients specified. Use the 'AddInMemoryClients' extension method to register a development version.");
-        TestService(serviceProvider, typeof(IResourceStore), logger, "No storage mechanism for resources specified. Use the 'AddInMemoryIdentityResources' or 'AddInMemoryApiResources' extension method to register a development version.");
-
-        var persistedGrants = serviceProvider.GetService(typeof(IPersistedGrantStore));
-        if (persistedGrants.GetType().FullName == typeof(InMemoryPersistedGrantStore).FullName)
+        using (var scope = scopeFactory.CreateScope())
         {
-            logger.LogInformation("You are using the in-memory version of the persisted grant store. This will store consent decisions, authorization codes, refresh and reference tokens in memory only. If you are using any of those features in production, you want to switch to a different store implementation.");
+            var serviceProvider = scope.ServiceProvider;
+
+            var options = serviceProvider.GetRequiredService<IdentityServerOptions>();
+            var env = serviceProvider.GetRequiredService<IHostEnvironment>();
+
+            TestService(serviceProvider, typeof(IPersistedGrantStore), logger, "No storage mechanism for grants specified. Use the 'AddInMemoryPersistedGrants' extension method to register a development version.");
+            TestService(serviceProvider, typeof(IClientStore), logger, "No storage mechanism for clients specified. Use the 'AddInMemoryClients' extension method to register a development version.");
+            TestService(serviceProvider, typeof(IResourceStore), logger, "No storage mechanism for resources specified. Use the 'AddInMemoryIdentityResources' or 'AddInMemoryApiResources' extension method to register a development version.");
+
+            var persistedGrants = serviceProvider.GetRequiredService(typeof(IPersistedGrantStore));
+            if (persistedGrants.GetType().FullName == typeof(InMemoryPersistedGrantStore).FullName)
+            {
+                logger.LogInformation("You are using the in-memory version of the persisted grant store. This will store consent decisions, authorization codes, refresh and reference tokens in memory only. If you are using any of those features in production, you want to switch to a different store implementation.");
+            }
+
+            ValidateOptions(options, logger);
+
+            ValidateAsync(serviceProvider, logger).GetAwaiter().GetResult();
         }
-
-        var options = serviceProvider.GetRequiredService<IdentityServerOptions>();
-        ValidateOptions(options, logger);
-
-        ValidateAsync(serviceProvider, logger).GetAwaiter().GetResult();
     }
 
     private static async Task ValidateAsync(IServiceProvider services, ILogger logger)
@@ -93,17 +104,28 @@ public static class IdentityServerApplicationBuilderExtensions
         }
         else
         {
-            AuthenticationScheme authenticationScheme;
+            AuthenticationScheme? authenticationScheme;
 
             if (options.Authentication.CookieAuthenticationScheme != null)
             {
                 authenticationScheme = await schemes.GetSchemeAsync(options.Authentication.CookieAuthenticationScheme);
-                logger.LogInformation("Using explicitly configured authentication scheme {scheme} for IdentityServer", options.Authentication.CookieAuthenticationScheme);
+                if (authenticationScheme != null)
+                {
+                    logger.LogInformation("Using explicitly configured authentication scheme {scheme} for IdentityServer", options.Authentication.CookieAuthenticationScheme);
+                }
             }
             else
             {
                 authenticationScheme = await schemes.GetDefaultAuthenticateSchemeAsync();
-                logger.LogInformation("Using the default authentication scheme {scheme} for IdentityServer", authenticationScheme.Name);
+                if (authenticationScheme != null)
+                {
+                    logger.LogInformation("Using the default authentication scheme {scheme} for IdentityServer", authenticationScheme.Name);
+                }
+            }
+
+            if (authenticationScheme == null)
+            {
+                throw new Exception("Could not locate an authentication scheme for your host. Please configure a default, or set the IdentityServerOptions.Authentication.CookieAuthenticationScheme.");
             }
 
             if (!typeof(IAuthenticationSignInHandler).IsAssignableFrom(authenticationScheme.HandlerType))
@@ -122,24 +144,31 @@ public static class IdentityServerApplicationBuilderExtensions
     private static void ValidateOptions(IdentityServerOptions options, ILogger logger)
     {
         if (options.IssuerUri.IsPresent()) logger.LogDebug("Custom IssuerUri set to {0}", options.IssuerUri);
-        
-        // todo: perhaps different logging messages?
+
+        // these three are dynamically populated later from the cookie handler options
         //if (options.UserInteraction.LoginUrl.IsMissing()) throw new InvalidOperationException("LoginUrl is not configured");
         //if (options.UserInteraction.LoginReturnUrlParameter.IsMissing()) throw new InvalidOperationException("LoginReturnUrlParameter is not configured");
         //if (options.UserInteraction.LogoutUrl.IsMissing()) throw new InvalidOperationException("LogoutUrl is not configured");
+
         if (options.UserInteraction.LogoutIdParameter.IsMissing()) throw new InvalidOperationException("LogoutIdParameter is not configured");
         if (options.UserInteraction.ErrorUrl.IsMissing()) throw new InvalidOperationException("ErrorUrl is not configured");
         if (options.UserInteraction.ErrorIdParameter.IsMissing()) throw new InvalidOperationException("ErrorIdParameter is not configured");
         if (options.UserInteraction.ConsentUrl.IsMissing()) throw new InvalidOperationException("ConsentUrl is not configured");
         if (options.UserInteraction.ConsentReturnUrlParameter.IsMissing()) throw new InvalidOperationException("ConsentReturnUrlParameter is not configured");
         if (options.UserInteraction.CustomRedirectReturnUrlParameter.IsMissing()) throw new InvalidOperationException("CustomRedirectReturnUrlParameter is not configured");
+        if (options.UserInteraction.CreateAccountUrl.IsPresent())
+        {
+            if (options.UserInteraction.CreateAccountReturnUrlParameter.IsMissing()) throw new InvalidOperationException("CreateAccountReturnUrlParameter is not configured");
+            // if CreateAccountUrl is set, then we internally add to the collection of what we support
+            options.UserInteraction.PromptValuesSupported.Add(OidcConstants.PromptModes.Create);
+        }
 
         if (options.Authentication.CheckSessionCookieName.IsMissing()) throw new InvalidOperationException("CheckSessionCookieName is not configured");
 
         if (options.Cors.CorsPolicyName.IsMissing()) throw new InvalidOperationException("CorsPolicyName is not configured");
     }
 
-    internal static object TestService(IServiceProvider serviceProvider, Type service, ILogger logger, string message = null, bool doThrow = true)
+    internal static object? TestService(IServiceProvider serviceProvider, Type service, ILogger logger, string? message = null, bool doThrow = true)
     {
         var appService = serviceProvider.GetService(service);
 

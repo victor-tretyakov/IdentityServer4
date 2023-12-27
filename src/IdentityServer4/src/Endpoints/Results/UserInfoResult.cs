@@ -5,23 +5,37 @@
 using IdentityServer4.Extensions;
 using IdentityServer4.Hosting;
 using Microsoft.AspNetCore.Http;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace IdentityServer4.Endpoints.Results;
 
-internal class UserInfoResult : IEndpointResult
+/// <summary>
+/// The result of userinfo 
+/// </summary>
+public class UserInfoResult : EndpointResult<UserInfoResult>
 {
-    public Dictionary<string, object> Claims;
+    /// <summary>
+    /// The claims
+    /// </summary>
+    public Dictionary<string, object> Claims { get; }
 
+    /// <summary>
+    /// Ctor
+    /// </summary>
+    /// <param name="claims"></param>
     public UserInfoResult(Dictionary<string, object> claims)
     {
-        Claims = claims;
+        Claims = claims ?? throw new ArgumentNullException(nameof(claims));
     }
+}
 
-    public async Task ExecuteAsync(HttpContext context)
+internal class UserInfoHttpWriter : IHttpResponseWriter<UserInfoResult>
+{
+    public async Task WriteHttpResponse(UserInfoResult result, HttpContext context)
     {
         context.Response.SetNoCache();
-        await context.Response.WriteJsonAsync(Claims);
+        await context.Response.WriteJsonAsync(result.Claims);
     }
 }

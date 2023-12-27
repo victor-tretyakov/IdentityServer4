@@ -3,9 +3,9 @@
 
 using IdentityServer4.Configuration;
 using IdentityServer4.Endpoints.Results;
-using IdentityServer4.Extensions;
 using IdentityServer4.Hosting;
 using IdentityServer4.ResponseHandling;
+using IdentityServer4.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System.Net;
@@ -18,16 +18,21 @@ internal class DiscoveryEndpoint : IEndpointHandler
     private readonly ILogger _logger;
 
     private readonly IdentityServerOptions _options;
-
+    private readonly IIssuerNameService _issuerNameService;
+    private readonly IServerUrls _urls;
     private readonly IDiscoveryResponseGenerator _responseGenerator;
 
     public DiscoveryEndpoint(
         IdentityServerOptions options,
+        IIssuerNameService issuerNameService,
         IDiscoveryResponseGenerator responseGenerator,
+        IServerUrls urls,
         ILogger<DiscoveryEndpoint> logger)
     {
         _logger = logger;
         _options = options;
+        _issuerNameService = issuerNameService;
+        _urls = urls;
         _responseGenerator = responseGenerator;
     }
 
@@ -50,8 +55,8 @@ internal class DiscoveryEndpoint : IEndpointHandler
             return new StatusCodeResult(HttpStatusCode.NotFound);
         }
 
-        var baseUrl = context.GetIdentityServerBaseUrl().EnsureTrailingSlash();
-        var issuerUri = context.GetIdentityServerIssuerUri();
+        var baseUrl = _urls.BaseUrl;
+        var issuerUri = await _issuerNameService.GetCurrentAsync();
 
         // generate response
         _logger.LogTrace("Calling into discovery response generator: {type}", _responseGenerator.GetType().FullName);

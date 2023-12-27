@@ -13,7 +13,7 @@ namespace IdentityServer4.Endpoints.Results;
 /// Result for a raw HTTP status code
 /// </summary>
 /// <seealso cref="IEndpointResult" />
-public class StatusCodeResult : IEndpointResult
+public class StatusCodeResult : EndpointResult<StatusCodeResult>
 {
     /// <summary>
     /// Gets the status code.
@@ -29,7 +29,7 @@ public class StatusCodeResult : IEndpointResult
     /// <param name="statusCode">The status code.</param>
     public StatusCodeResult(HttpStatusCode statusCode)
     {
-        StatusCode = (int)statusCode;
+        StatusCode = (int) statusCode;
     }
 
     /// <summary>
@@ -40,15 +40,13 @@ public class StatusCodeResult : IEndpointResult
     {
         StatusCode = statusCode;
     }
+}
 
-    /// <summary>
-    /// Executes the result.
-    /// </summary>
-    /// <param name="context">The HTTP context.</param>
-    /// <returns></returns>
-    public Task ExecuteAsync(HttpContext context)
+class StatusCodeHttpWriter : IHttpResponseWriter<StatusCodeResult>
+{
+    public Task WriteHttpResponse(StatusCodeResult result, HttpContext context)
     {
-        context.Response.StatusCode = StatusCode;
+        context.Response.StatusCode = result.StatusCode;
 
         return Task.CompletedTask;
     }

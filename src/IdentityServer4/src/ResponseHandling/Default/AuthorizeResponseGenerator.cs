@@ -24,6 +24,11 @@ namespace IdentityServer4.ResponseHandling;
 public class AuthorizeResponseGenerator : IAuthorizeResponseGenerator
 {
     /// <summary>
+    /// The options
+    /// </summary>
+    protected IdentityServerOptions Options;
+
+    /// <summary>
     /// The token service
     /// </summary>
     protected readonly ITokenService TokenService;
@@ -56,6 +61,7 @@ public class AuthorizeResponseGenerator : IAuthorizeResponseGenerator
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthorizeResponseGenerator"/> class.
     /// </summary>
+    /// <param name="options">The options.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="tokenService">The token service.</param>
@@ -63,6 +69,7 @@ public class AuthorizeResponseGenerator : IAuthorizeResponseGenerator
     /// <param name="authorizationCodeStore">The authorization code store.</param>
     /// <param name="events">The events.</param>
     public AuthorizeResponseGenerator(
+        IdentityServerOptions options,
         ISystemClock clock,
         ITokenService tokenService,
         IKeyMaterialService keyMaterialService,
@@ -70,12 +77,13 @@ public class AuthorizeResponseGenerator : IAuthorizeResponseGenerator
         ILogger<AuthorizeResponseGenerator> logger,
         IEventService events)
     {
+        Options = options;
         Clock = clock;
         TokenService = tokenService;
         KeyMaterialService = keyMaterialService;
         AuthorizationCodeStore = authorizationCodeStore;
-        Events = events;
         Logger = logger;
+        Events = events;
     }
 
     /// <summary>
@@ -83,24 +91,26 @@ public class AuthorizeResponseGenerator : IAuthorizeResponseGenerator
     /// </summary>
     /// <param name="request">The request.</param>
     /// <returns></returns>
-    /// <exception cref="InvalidOperationException">invalid grant type: " + request.GrantType</exception>
+    /// <exception cref="System.InvalidOperationException">invalid grant type: " + request.GrantType</exception>
     public virtual async Task<AuthorizeResponse> CreateResponseAsync(ValidatedAuthorizeRequest request)
     {
         if (request.GrantType == GrantType.AuthorizationCode)
         {
             return await CreateCodeFlowResponseAsync(request);
         }
+
         if (request.GrantType == GrantType.Implicit)
         {
             return await CreateImplicitFlowResponseAsync(request);
         }
+
         if (request.GrantType == GrantType.Hybrid)
         {
             return await CreateHybridFlowResponseAsync(request);
         }
 
-        Logger.LogError("Unsupported grant type: {grant_type}", request.GrantType);
-        throw new InvalidOperationException($"invalid grant type: {request.GrantType}");
+        Logger.LogError("Unsupported grant type: " + request.GrantType);
+        throw new InvalidOperationException("invalid grant type: " + request.GrantType);
     }
 
     /// <summary>
@@ -135,6 +145,7 @@ public class AuthorizeResponseGenerator : IAuthorizeResponseGenerator
 
         var response = new AuthorizeResponse
         {
+            Issuer = request.IssuerName,
             Request = request,
             Code = id,
             SessionState = request.GenerateSessionStateValue()
@@ -163,6 +174,7 @@ public class AuthorizeResponseGenerator : IAuthorizeResponseGenerator
             var tokenRequest = new TokenCreationRequest
             {
                 Subject = request.Subject,
+                // implicit responses do not allow resource indicator, so no resource indicator filtering needed here
                 ValidatedResources = request.ValidatedResources,
 
                 ValidatedRequest = request
@@ -178,7 +190,8 @@ public class AuthorizeResponseGenerator : IAuthorizeResponseGenerator
         if (responseTypes.Contains(OidcConstants.ResponseTypes.IdToken))
         {
             string stateHash = null;
-            if (request.State.IsPresent())
+
+            if (Options.EmitStateHash && request.State.IsPresent())
             {
                 var credential = await KeyMaterialService.GetSigningCredentialsAsync(request.Client.AllowedIdentityTokenSigningAlgorithms)
                     ?? throw new InvalidOperationException("No signing credential is configured.");
@@ -223,7 +236,7 @@ public class AuthorizeResponseGenerator : IAuthorizeResponseGenerator
     protected virtual async Task<AuthorizationCode> CreateCodeAsync(ValidatedAuthorizeRequest request)
     {
         string stateHash = null;
-        if (request.State.IsPresent())
+        if (Options.EmitStateHash && request.State.IsPresent())
         {
             var credential = await KeyMaterialService.GetSigningCredentialsAsync(request.Client.AllowedIdentityTokenSigningAlgorithms)
                 ?? throw new InvalidOperationException("No signing credential is configured.");
@@ -245,6 +258,7 @@ public class AuthorizeResponseGenerator : IAuthorizeResponseGenerator
 
             IsOpenId = request.IsOpenIdRequest,
             RequestedScopes = request.ValidatedResources.RawScopeValues,
+            RequestedResourceIndicators = request.RequestedResourceIndicators,
             RedirectUri = request.RedirectUri,
             Nonce = request.Nonce,
             StateHash = stateHash,

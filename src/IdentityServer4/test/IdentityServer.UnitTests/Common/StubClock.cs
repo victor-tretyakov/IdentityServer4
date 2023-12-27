@@ -2,14 +2,13 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System;
 using Microsoft.AspNetCore.Authentication;
+using System;
 
-namespace IdentityServer.UnitTests.Common
+namespace IdentityServer.UnitTests.Common;
+
+internal class StubClock : ISystemClock
 {
-    internal class StubClock : ISystemClock
-    {
-        public Func<DateTime> UtcNowFunc = () => DateTime.UtcNow;
-        public DateTimeOffset UtcNow => new DateTimeOffset(UtcNowFunc());
-    }
+    public Func<DateTime> UtcNowFunc { get; set; } = () => DateTime.UtcNow;
+    public DateTimeOffset UtcNow => new DateTimeOffset(UtcNowFunc());
 }

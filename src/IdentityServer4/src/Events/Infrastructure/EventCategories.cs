@@ -15,6 +15,11 @@ public static class EventCategories
     public const string Authentication = "Authentication";
 
     /// <summary>
+    /// Backchannel authentication related events
+    /// </summary>
+    public const string BackchannelAuthentication = "BackchannelAuthentication";
+
+    /// <summary>
     /// Token related events
     /// </summary>
     public const string Token = "Token";

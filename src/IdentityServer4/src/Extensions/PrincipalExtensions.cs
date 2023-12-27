@@ -49,7 +49,9 @@ public static class PrincipalExtensions
         var id = identity as ClaimsIdentity;
         var claim = id.FindFirst(JwtClaimTypes.AuthenticationTime);
 
-        return claim == null ? throw new InvalidOperationException("auth_time is missing.") : long.Parse(claim.Value);
+        if (claim == null) throw new InvalidOperationException("auth_time is missing.");
+
+        return long.Parse(claim.Value);
     }
 
     /// <summary>
@@ -68,26 +70,15 @@ public static class PrincipalExtensions
     /// </summary>
     /// <param name="identity">The identity.</param>
     /// <returns></returns>
-    /// <exception cref="InvalidOperationException">sub claim is missing</exception>
+    /// <exception cref="System.InvalidOperationException">sub claim is missing</exception>
     [DebuggerStepThrough]
     public static string GetSubjectId(this IIdentity identity)
     {
         var id = identity as ClaimsIdentity;
         var claim = id.FindFirst(JwtClaimTypes.Subject);
 
-        return claim == null ? throw new InvalidOperationException("sub claim is missing") : claim.Value;
-    }
-
-    /// <summary>
-    /// Gets the name.
-    /// </summary>
-    /// <param name="principal">The principal.</param>
-    /// <returns></returns>
-    [DebuggerStepThrough]
-    [Obsolete("This method will be removed in a future version. Use GetDisplayName instead.")]
-    public static string GetName(this IPrincipal principal)
-    {
-        return principal.Identity.GetName();
+        if (claim == null) throw new InvalidOperationException("sub claim is missing");
+        return claim.Value;
     }
 
     /// <summary>
@@ -105,22 +96,6 @@ public static class PrincipalExtensions
         if (sub != null) return sub.Value;
 
         return string.Empty;
-    }
-
-    /// <summary>
-    /// Gets the name.
-    /// </summary>
-    /// <param name="identity">The identity.</param>
-    /// <returns></returns>
-    /// <exception cref="InvalidOperationException">name claim is missing</exception>
-    [DebuggerStepThrough]
-    [Obsolete("This method will be removed in a future version. Use GetDisplayName instead.")]
-    public static string GetName(this IIdentity identity)
-    {
-        var id = identity as ClaimsIdentity;
-        var claim = id.FindFirst(JwtClaimTypes.Name);
-
-        return claim == null ? throw new InvalidOperationException("name claim is missing") : claim.Value;
     }
 
     /// <summary>
@@ -150,14 +125,15 @@ public static class PrincipalExtensions
     /// </summary>
     /// <param name="identity">The identity.</param>
     /// <returns></returns>
-    /// <exception cref="InvalidOperationException">amr claim is missing</exception>
+    /// <exception cref="System.InvalidOperationException">amr claim is missing</exception>
     [DebuggerStepThrough]
     public static string GetAuthenticationMethod(this IIdentity identity)
     {
         var id = identity as ClaimsIdentity;
         var claim = id.FindFirst(JwtClaimTypes.AuthenticationMethod);
 
-        return claim == null ? throw new InvalidOperationException("amr claim is missing") : claim.Value;
+        if (claim == null) throw new InvalidOperationException("amr claim is missing");
+        return claim.Value;
     }
 
     /// <summary>
@@ -188,14 +164,26 @@ public static class PrincipalExtensions
     /// </summary>
     /// <param name="identity">The identity.</param>
     /// <returns></returns>
-    /// <exception cref="InvalidOperationException">idp claim is missing</exception>
+    /// <exception cref="System.InvalidOperationException">idp claim is missing</exception>
     [DebuggerStepThrough]
     public static string GetIdentityProvider(this IIdentity identity)
     {
         var id = identity as ClaimsIdentity;
         var claim = id.FindFirst(JwtClaimTypes.IdentityProvider);
 
-        return claim == null ? throw new InvalidOperationException("idp claim is missing") : claim.Value;
+        if (claim == null) throw new InvalidOperationException("idp claim is missing");
+        return claim.Value;
+    }
+
+    /// <summary>
+    /// Gets the tenant.
+    /// </summary>
+    /// <param name="principal">The principal.</param>
+    /// <returns></returns>
+    [DebuggerStepThrough]
+    public static string GetTenant(this ClaimsPrincipal principal)
+    {
+        return principal.FindFirst(IdentityServerConstants.ClaimTypes.Tenant)?.Value;
     }
 
     /// <summary>

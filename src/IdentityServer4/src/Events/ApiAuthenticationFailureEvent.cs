@@ -7,7 +7,7 @@ namespace IdentityServer4.Events;
 /// <summary>
 /// Event for failed API authentication
 /// </summary>
-/// <seealso cref="IdentityServer4.Events.Event" />
+/// <seealso cref="Event" />
 public class ApiAuthenticationFailureEvent : Event
 {
     /// <summary>
@@ -16,11 +16,11 @@ public class ApiAuthenticationFailureEvent : Event
     /// <param name="apiName">Name of the API.</param>
     /// <param name="message">The message.</param>
     public ApiAuthenticationFailureEvent(string apiName, string message)
-        : base(EventCategories.Authentication, 
-              "API Authentication Failure",
-              EventTypes.Failure, 
-              EventIds.ApiAuthenticationFailure, 
-              message)
+        : base(EventCategories.Authentication,
+            "API Authentication Failure",
+            EventTypes.Failure,
+            EventIds.ApiAuthenticationFailure,
+            message)
     {
         ApiName = apiName;
     }

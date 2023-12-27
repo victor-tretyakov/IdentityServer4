@@ -83,14 +83,14 @@ internal class PostConfigureInternalCookieOptions : IPostConfigureOptions<Cookie
     {
         _idsrv = idsrv;
         _authOptions = authOptions;
-        _logger = loggerFactory.CreateLogger("IdentityServer4.Startup");
+        _logger = loggerFactory.CreateLogger("Duende.IdentityServer.Startup");
     }
 
     public void PostConfigure(string name, CookieAuthenticationOptions options)
     {
         var scheme = _idsrv.Authentication.CookieAuthenticationScheme ??
-            _authOptions.Value.DefaultAuthenticateScheme ??
-            _authOptions.Value.DefaultScheme;
+                     _authOptions.Value.DefaultAuthenticateScheme ??
+                     _authOptions.Value.DefaultScheme;
 
         if (name == scheme)
         {

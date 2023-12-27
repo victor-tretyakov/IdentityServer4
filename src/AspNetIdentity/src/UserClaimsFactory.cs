@@ -41,7 +41,7 @@ internal class UserClaimsFactory<TUser> : IUserClaimsPrincipalFactory<TUser>
             identity.AddClaim(new Claim(JwtClaimTypes.PreferredUserName, username));
         }
 
-        if (!identity.HasClaim(x=>x.Type == JwtClaimTypes.Name))
+        if (!identity.HasClaim(x => x.Type == JwtClaimTypes.Name))
         {
             identity.AddClaim(new Claim(JwtClaimTypes.Name, username));
         }
@@ -53,7 +53,6 @@ internal class UserClaimsFactory<TUser> : IUserClaimsPrincipalFactory<TUser>
             {
                 identity.AddClaims(new[]
                 {
-                    new Claim(JwtClaimTypes.Email, email),
                     new Claim(JwtClaimTypes.EmailVerified,
                         await _userManager.IsEmailConfirmedAsync(user) ? "true" : "false", ClaimValueTypes.Boolean)
                 });

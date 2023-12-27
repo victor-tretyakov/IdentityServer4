@@ -29,7 +29,7 @@ public class InMemoryPersistedGrantStore : IPersistedGrantStore
     /// <inheritdoc/>
     public Task<PersistedGrant> GetAsync(string key)
     {
-        if (_repository.TryGetValue(key, out var token))
+        if (key != null && _repository.TryGetValue(key, out var token))
         {
             return Task.FromResult(token);
         }
@@ -41,9 +41,9 @@ public class InMemoryPersistedGrantStore : IPersistedGrantStore
     public Task<IEnumerable<PersistedGrant>> GetAllAsync(PersistedGrantFilter filter)
     {
         filter.Validate();
-        
+
         var items = Filter(filter);
-        
+
         return Task.FromResult(items);
     }
 
@@ -61,7 +61,7 @@ public class InMemoryPersistedGrantStore : IPersistedGrantStore
         filter.Validate();
 
         var items = Filter(filter);
-        
+
         foreach (var item in items)
         {
             _repository.TryRemove(item.Key, out _);
@@ -76,7 +76,17 @@ public class InMemoryPersistedGrantStore : IPersistedGrantStore
             from item in _repository
             select item.Value;
 
-        if (!string.IsNullOrWhiteSpace(filter.ClientId))
+        if (filter.ClientIds != null)
+        {
+            var ids = filter.ClientIds.ToList();
+            if (!string.IsNullOrWhiteSpace(filter.ClientId))
+            {
+                ids.Add(filter.ClientId);
+            }
+
+            query = query.Where(x => ids.Contains(x.ClientId));
+        }
+        else if (!string.IsNullOrWhiteSpace(filter.ClientId))
         {
             query = query.Where(x => x.ClientId == filter.ClientId);
         }
@@ -91,12 +101,24 @@ public class InMemoryPersistedGrantStore : IPersistedGrantStore
             query = query.Where(x => x.SubjectId == filter.SubjectId);
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.Type))
+        if (filter.Types != null)
+        {
+            var types = filter.Types.ToList();
+
+            if (!string.IsNullOrWhiteSpace(filter.Type))
+            {
+                types.Add(filter.Type);
+            }
+
+            query = query.Where(x => types.Contains(x.Type));
+        }
+        else if (!string.IsNullOrWhiteSpace(filter.Type))
         {
             query = query.Where(x => x.Type == filter.Type);
         }
 
         var items = query.ToArray().AsEnumerable();
+
         return items;
     }
 }

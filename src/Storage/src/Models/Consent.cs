@@ -18,23 +18,23 @@ public class Consent
     /// <value>
     /// The subject identifier.
     /// </value>
-    public string SubjectId { get; set; }
-    
+    public string SubjectId { get; set; } = default!;
+
     /// <summary>
     /// Gets or sets the client identifier.
     /// </summary>
     /// <value>
     /// The client identifier.
     /// </value>
-    public string ClientId { get; set; }
-    
+    public string ClientId { get; set; } = default!;
+
     /// <summary>
     /// Gets or sets the scopes.
     /// </summary>
     /// <value>
     /// The scopes.
     /// </value>
-    public IEnumerable<string> Scopes { get; set; }
+    public IEnumerable<string>? Scopes { get; set; }
 
     /// <summary>
     /// Gets or sets the creation time.

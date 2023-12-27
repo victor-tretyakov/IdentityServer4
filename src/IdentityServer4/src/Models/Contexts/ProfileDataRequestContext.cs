@@ -5,6 +5,7 @@
 using IdentityServer4.Validation;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 
 namespace IdentityServer4.Models;
@@ -41,7 +42,7 @@ public class ProfileDataRequestContext
     /// <value>
     /// The validatedRequest.
     /// </value>
-    public ValidatedRequest ValidatedRequest { get; set; }
+    public ValidatedRequest ValidatedRequest { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the subject.
@@ -49,7 +50,7 @@ public class ProfileDataRequestContext
     /// <value>
     /// The subject.
     /// </value>
-    public ClaimsPrincipal Subject { get; set; }
+    public ClaimsPrincipal Subject { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the requested claim types.
@@ -57,7 +58,7 @@ public class ProfileDataRequestContext
     /// <value>
     /// The requested claim types.
     /// </value>
-    public IEnumerable<string> RequestedClaimTypes { get; set; }
+    public IEnumerable<string> RequestedClaimTypes { get; set; } = Enumerable.Empty<string>();
 
     /// <summary>
     /// Gets or sets the client id.
@@ -65,7 +66,7 @@ public class ProfileDataRequestContext
     /// <value>
     /// The client id.
     /// </value>
-    public Client Client { get; set; }
+    public Client Client { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the caller.
@@ -73,7 +74,7 @@ public class ProfileDataRequestContext
     /// <value>
     /// The caller.
     /// </value>
-    public string Caller { get; set; }
+    public string Caller { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the requested resources (if available).
@@ -81,7 +82,7 @@ public class ProfileDataRequestContext
     /// <value>
     /// The resources.
     /// </value>
-    public ResourceValidationResult RequestedResources { get; set; }
+    public ResourceValidationResult RequestedResources { get; set; } = default!;
 
     /// <summary>
     /// Gets or sets the issued claims.

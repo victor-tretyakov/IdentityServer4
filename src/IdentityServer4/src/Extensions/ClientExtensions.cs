@@ -23,9 +23,9 @@ public static class ClientExtensions
     public static bool IsImplicitOnly(this Client client)
     {
         return client != null &&
-            client.AllowedGrantTypes != null &&
-            client.AllowedGrantTypes.Count == 1 &&
-            client.AllowedGrantTypes.First() == GrantType.Implicit;
+               client.AllowedGrantTypes != null &&
+               client.AllowedGrantTypes.Count == 1 &&
+               client.AllowedGrantTypes.First() == GrantType.Implicit;
     }
 
     /// <summary>
@@ -39,15 +39,14 @@ public static class ClientExtensions
         var keys = new List<SecurityKey>();
 
         var certificates = GetCertificates(secretList)
-                            .Select(c => (SecurityKey) new X509SecurityKey(c))
-                            .ToList();
+            .Select(c => (SecurityKey) new X509SecurityKey(c))
+            .ToList();
         keys.AddRange(certificates);
 
         var jwks = secretList
-                    .Where(s => s.Type == IdentityServerConstants.SecretTypes.JsonWebKey)
-                    .Select(s => new Microsoft.IdentityModel.Tokens.JsonWebKey(s.Value))
-                    .ToList();
-
+            .Where(s => s.Type == IdentityServerConstants.SecretTypes.JsonWebKey)
+            .Select(s => new Microsoft.IdentityModel.Tokens.JsonWebKey(s.Value))
+            .ToList();
         keys.AddRange(jwks);
 
         return Task.FromResult(keys);

@@ -16,7 +16,7 @@ namespace IdentityServer4.Models;
 public class IdentityResource : Resource
 {
     private string DebuggerDisplay => Name ?? $"{{{typeof(IdentityResource)}}}";
-    
+
     /// <summary>
     /// Initializes a new instance of the <see cref="IdentityResource"/> class.
     /// </summary>
@@ -40,8 +40,8 @@ public class IdentityResource : Resource
     /// <param name="name">The name.</param>
     /// <param name="displayName">The display name.</param>
     /// <param name="userClaims">List of associated user claims that should be included when this resource is requested.</param>
-    /// <exception cref="System.ArgumentNullException">name</exception>
-    /// <exception cref="System.ArgumentException">Must provide at least one claim type - claimTypes</exception>
+    /// <exception cref="ArgumentNullException">name</exception>
+    /// <exception cref="ArgumentException">Must provide at least one claim type - claimTypes</exception>
     public IdentityResource(string name, string displayName, IEnumerable<string> userClaims)
     {
         if (name.IsMissing()) throw new ArgumentNullException(nameof(name));
@@ -50,7 +50,7 @@ public class IdentityResource : Resource
         Name = name;
         DisplayName = displayName;
 
-        foreach(var type in userClaims)
+        foreach (var type in userClaims)
         {
             UserClaims.Add(type);
         }

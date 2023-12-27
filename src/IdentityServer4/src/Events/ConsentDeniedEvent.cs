@@ -20,9 +20,9 @@ public class ConsentDeniedEvent : Event
     /// <param name="requestedScopes">The requested scopes.</param>
     public ConsentDeniedEvent(string subjectId, string clientId, IEnumerable<string> requestedScopes)
         : base(EventCategories.Grants,
-              "Consent denied",
-              EventTypes.Information,
-              EventIds.ConsentDenied)
+            "Consent denied",
+            EventTypes.Information,
+            EventIds.ConsentDenied)
     {
         SubjectId = subjectId;
         ClientId = clientId;

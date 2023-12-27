@@ -30,7 +30,7 @@ public static class IdentityServerBuilderExtensionsCrypto
     public static IIdentityServerBuilder AddSigningCredential(this IIdentityServerBuilder builder, SigningCredentials credential)
     {
         if (!(credential.Key is AsymmetricSecurityKey
-            || credential.Key is JsonWebKey credentialKey && credentialKey.HasPrivateKey))
+              || credential.Key is IdentityModel.Tokens.JsonWebKey && ((IdentityModel.Tokens.JsonWebKey) credential.Key).HasPrivateKey))
         {
             throw new InvalidOperationException("Signing key is not asymmetric");
         }
@@ -45,7 +45,7 @@ public static class IdentityServerBuilderExtensionsCrypto
             throw new InvalidOperationException("Invalid curve for signing algorithm");
         }
 
-        if (credential.Key is JsonWebKey jsonWebKey)
+        if (credential.Key is IdentityModel.Tokens.JsonWebKey jsonWebKey)
         {
             if (jsonWebKey.Kty == JsonWebAlgorithmsKeyTypes.EllipticCurve && !CryptoHelper.IsValidCrvValueForAlgorithm(jsonWebKey.Crv))
                 throw new InvalidOperationException("Invalid crv value for signing algorithm");
@@ -106,8 +106,8 @@ public static class IdentityServerBuilderExtensionsCrypto
         NameType nameType = NameType.SubjectDistinguishedName,
         string signingAlgorithm = SecurityAlgorithms.RsaSha256)
     {
-        var certificate = CryptoHelper.FindCertificate(name, location, nameType)
-            ?? throw new InvalidOperationException($"certificate: '{name}' not found in certificate store");
+        var certificate = CryptoHelper.FindCertificate(name, location, nameType);
+        if (certificate == null) throw new InvalidOperationException($"certificate: '{name}' not found in certificate store");
 
         return builder.AddSigningCredential(certificate, signingAlgorithm);
     }
@@ -162,10 +162,13 @@ public static class IdentityServerBuilderExtensionsCrypto
     public static IIdentityServerBuilder AddDeveloperSigningCredential(
         this IIdentityServerBuilder builder,
         bool persistKey = true,
-        string filename = null,
+        string? filename = null,
         IdentityServerConstants.RsaSigningAlgorithm signingAlgorithm = IdentityServerConstants.RsaSigningAlgorithm.RS256)
     {
-        filename ??= Path.Combine(Directory.GetCurrentDirectory(), "tempkey.jwk");
+        if (filename == null)
+        {
+            filename = Path.Combine(Directory.GetCurrentDirectory(), "tempkey.jwk");
+        }
 
         if (File.Exists(filename))
         {
@@ -182,7 +185,7 @@ public static class IdentityServerBuilderExtensionsCrypto
 
             if (persistKey)
             {
-                File.WriteAllText(filename, JsonSerializer.Serialize(jwk));
+                File.WriteAllText(filename, System.Text.Json.JsonSerializer.Serialize(jwk));
             }
 
             return builder.AddSigningCredential(key, signingAlgorithm);
@@ -262,7 +265,7 @@ public static class IdentityServerBuilderExtensionsCrypto
         // add signing algorithm name to key ID to allow using the same key for two different algorithms (e.g. RS256 and PS56);
         var key = new X509SecurityKey(certificate);
         key.KeyId += signingAlgorithm;
-        
+
         var keyInfo = new SecurityKeyInfo
         {
             Key = key,
@@ -287,8 +290,8 @@ public static class IdentityServerBuilderExtensionsCrypto
         NameType nameType = NameType.SubjectDistinguishedName,
         string signingAlgorithm = SecurityAlgorithms.RsaSha256)
     {
-        var certificate = CryptoHelper.FindCertificate(name, location, nameType)
-            ?? throw new InvalidOperationException($"certificate: '{name}' not found in certificate store");
+        var certificate = CryptoHelper.FindCertificate(name, location, nameType);
+        if (certificate == null) throw new InvalidOperationException($"certificate: '{name}' not found in certificate store");
 
         return builder.AddValidationKey(certificate, signingAlgorithm);
     }

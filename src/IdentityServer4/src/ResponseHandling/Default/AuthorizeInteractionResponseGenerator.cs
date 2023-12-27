@@ -3,6 +3,7 @@
 
 
 using IdentityModel;
+using IdentityServer4.Configuration;
 using IdentityServer4.Extensions;
 using IdentityServer4.Models;
 using IdentityServer4.Services;
@@ -42,18 +43,26 @@ public class AuthorizeInteractionResponseGenerator : IAuthorizeInteractionRespon
     protected readonly ISystemClock Clock;
 
     /// <summary>
+    /// The options
+    /// </summary>
+    protected readonly IdentityServerOptions Options;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AuthorizeInteractionResponseGenerator"/> class.
     /// </summary>
+    /// <param name="options"></param>
     /// <param name="clock">The clock.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="consent">The consent.</param>
     /// <param name="profile">The profile.</param>
     public AuthorizeInteractionResponseGenerator(
+        IdentityServerOptions options,
         ISystemClock clock,
         ILogger<AuthorizeInteractionResponseGenerator> logger,
-        IConsentService consent, 
+        IConsentService consent,
         IProfileService profile)
     {
+        Options = options;
         Clock = clock;
         Logger = logger;
         Consent = consent;
@@ -70,7 +79,8 @@ public class AuthorizeInteractionResponseGenerator : IAuthorizeInteractionRespon
     {
         Logger.LogTrace("ProcessInteractionAsync");
 
-        if (consent != null && consent.Granted == false && consent.Error.HasValue && request.Subject.IsAuthenticated() == false)
+        // handle the scenario where use choose to deny prior to even logging in
+        if (consent != null && consent.Granted == false && consent.Error.HasValue)
         {
             // special case when anonymous user has issued an error prior to authenticating
             Logger.LogInformation("Error: User consent result: {error}", consent.Error);
@@ -81,9 +91,11 @@ public class AuthorizeInteractionResponseGenerator : IAuthorizeInteractionRespon
                 AuthorizationError.ConsentRequired => OidcConstants.AuthorizeErrors.ConsentRequired,
                 AuthorizationError.InteractionRequired => OidcConstants.AuthorizeErrors.InteractionRequired,
                 AuthorizationError.LoginRequired => OidcConstants.AuthorizeErrors.LoginRequired,
+                AuthorizationError.TemporarilyUnavailable => OidcConstants.AuthorizeErrors.TemporarilyUnavailable,
+                AuthorizationError.UnmetAuthenticationRequirements => OidcConstants.AuthorizeErrors.UnmetAuthenticationRequirements,
                 _ => OidcConstants.AuthorizeErrors.AccessDenied
             };
-            
+
             return new InteractionResponse
             {
                 Error = error,
@@ -91,26 +103,59 @@ public class AuthorizeInteractionResponseGenerator : IAuthorizeInteractionRespon
             };
         }
 
-        var result = await ProcessLoginAsync(request);
-        
-        if (!result.IsLogin && !result.IsError && !result.IsRedirect)
+        // see if create account was requested
+        var result = await ProcessCreateAccountAsync(request);
+        if (result.ResponseType == InteractionResponseType.None)
         {
-            result = await ProcessConsentAsync(request, consent);
+            // see if the user needs to login
+            result = await ProcessLoginAsync(request);
+            if (result.ResponseType == InteractionResponseType.None)
+            {
+                // see if the user needs to consent
+                result = await ProcessConsentAsync(request, consent);
+            }
         }
 
-        if ((result.IsLogin || result.IsConsent || result.IsRedirect) && request.PromptModes.Contains(OidcConstants.PromptModes.None))
+        if ((result.ResponseType == InteractionResponseType.UserInteraction) && request.PromptModes.Contains(OidcConstants.PromptModes.None))
         {
             // prompt=none means do not show the UI
             Logger.LogInformation("Changing response to LoginRequired: prompt=none was requested");
             result = new InteractionResponse
             {
                 Error = result.IsLogin ? OidcConstants.AuthorizeErrors.LoginRequired :
-                            result.IsConsent ? OidcConstants.AuthorizeErrors.ConsentRequired : 
-                                OidcConstants.AuthorizeErrors.InteractionRequired
+                    result.IsConsent ? OidcConstants.AuthorizeErrors.ConsentRequired :
+                    OidcConstants.AuthorizeErrors.InteractionRequired
             };
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Processes the create account logic.
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <returns></returns>
+    protected internal virtual Task<InteractionResponse> ProcessCreateAccountAsync(ValidatedAuthorizeRequest request)
+    {
+        InteractionResponse result;
+
+        // check prompt=create here, as we don't support it with any other combo
+        if (request.PromptModes.Contains(OidcConstants.PromptModes.Create))
+        {
+            Logger.LogInformation("Showing create account: request contains prompt=create");
+            request.RemovePrompt();
+            result = new InteractionResponse
+            {
+                IsCreateAccount = true
+            };
+        }
+        else
+        {
+            result = new InteractionResponse();
+        }
+
+        return Task.FromResult(result);
     }
 
     /// <summary>
@@ -128,13 +173,13 @@ public class AuthorizeInteractionResponseGenerator : IAuthorizeInteractionRespon
             // remove prompt so when we redirect back in from login page
             // we won't think we need to force a prompt again
             request.RemovePrompt();
-            
+
             return new InteractionResponse { IsLogin = true };
         }
 
         // unauthenticated user
         var isAuthenticated = request.Subject.IsAuthenticated();
-        
+
         // user de-activated
         var isActive = false;
 
@@ -142,7 +187,7 @@ public class AuthorizeInteractionResponseGenerator : IAuthorizeInteractionRespon
         {
             var isActiveCtx = new IsActiveContext(request.Subject, request.Client, IdentityServerConstants.ProfileIsActiveCallers.AuthorizeEndpoint);
             await Profile.IsActiveAsync(isActiveCtx);
-            
+
             isActive = isActiveCtx.IsActive;
         }
 
@@ -158,6 +203,21 @@ public class AuthorizeInteractionResponseGenerator : IAuthorizeInteractionRespon
             }
 
             return new InteractionResponse { IsLogin = true };
+        }
+
+        // check if tenant hint matches current tenant
+        if (Options.ValidateTenantOnAuthorization)
+        {
+            var tenant = request.GetTenant();
+            if (tenant.IsPresent())
+            {
+                var currentTenant = request.Subject.GetTenant();
+                if (tenant != currentTenant)
+                {
+                    Logger.LogInformation("Showing login: Current tenant ({currentTenant}) is not the requested tenant ({tenant})", currentTenant, tenant);
+                    return new InteractionResponse { IsLogin = true };
+                }
+            }
         }
 
         // check current idp
@@ -178,7 +238,7 @@ public class AuthorizeInteractionResponseGenerator : IAuthorizeInteractionRespon
         if (request.MaxAge.HasValue)
         {
             var authTime = request.Subject.GetAuthenticationTime();
-            if (Clock.UtcNow > authTime.AddSeconds(request.MaxAge.Value))
+            if (Clock.UtcNow.UtcDateTime > authTime.AddSeconds(request.MaxAge.Value))
             {
                 Logger.LogInformation("Showing login: Requested MaxAge exceeded.");
 
@@ -196,9 +256,9 @@ public class AuthorizeInteractionResponseGenerator : IAuthorizeInteractionRespon
             }
         }
         // check external idp restrictions if user not using local idp
-        else if (request.Client.IdentityProviderRestrictions != null && 
-            request.Client.IdentityProviderRestrictions.Any() &&
-            !request.Client.IdentityProviderRestrictions.Contains(currentIdp))
+        else if (request.Client.IdentityProviderRestrictions != null &&
+                 request.Client.IdentityProviderRestrictions.Any() &&
+                 !request.Client.IdentityProviderRestrictions.Contains(currentIdp))
         {
             Logger.LogInformation("Showing login: User is logged in with idp: {idp}, but idp not in client restriction list.", currentIdp);
             return new InteractionResponse { IsLogin = true };
@@ -282,9 +342,11 @@ public class AuthorizeInteractionResponseGenerator : IAuthorizeInteractionRespon
                         AuthorizationError.ConsentRequired => OidcConstants.AuthorizeErrors.ConsentRequired,
                         AuthorizationError.InteractionRequired => OidcConstants.AuthorizeErrors.InteractionRequired,
                         AuthorizationError.LoginRequired => OidcConstants.AuthorizeErrors.LoginRequired,
+                        AuthorizationError.TemporarilyUnavailable => OidcConstants.AuthorizeErrors.TemporarilyUnavailable,
+                        AuthorizationError.UnmetAuthenticationRequirements => OidcConstants.AuthorizeErrors.UnmetAuthenticationRequirements,
                         _ => OidcConstants.AuthorizeErrors.AccessDenied
                     };
-                    
+
                     response.Error = error;
                     response.ErrorDescription = consent.ErrorDescription;
                 }

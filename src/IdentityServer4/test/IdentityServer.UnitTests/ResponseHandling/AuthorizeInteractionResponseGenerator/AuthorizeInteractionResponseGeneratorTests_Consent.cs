@@ -2,26 +2,27 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading.Tasks;
 using FluentAssertions;
 using IdentityModel;
 using IdentityServer.UnitTests.Common;
 using IdentityServer4.Configuration;
 using IdentityServer4.Models;
 using IdentityServer4.Validation;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace IdentityServer.UnitTests.ResponseHandling.AuthorizeInteractionResponseGenerator;
 
 public class AuthorizeInteractionResponseGeneratorTests_Consent
 {
-    private readonly IdentityServer4.ResponseHandling.AuthorizeInteractionResponseGenerator _subject;
-    private readonly MockConsentService _mockConsent = new();
-    private readonly MockProfileService _fakeUserService = new();
+    private IdentityServer4.ResponseHandling.AuthorizeInteractionResponseGenerator _subject;
+    private IdentityServerOptions _options = new IdentityServerOptions();
+    private MockConsentService _mockConsent = new MockConsentService();
+    private MockProfileService _fakeUserService = new MockProfileService();
 
     private void RequiresConsent(bool value)
     {
@@ -56,41 +57,43 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
     {
         return new ApiResource[]
         {
-            new() {
+            new ApiResource
+            {
                 Name = "api",
                 Scopes = { "read", "write", "forbidden" }
             }
-         };
+        };
     }
 
     private static IEnumerable<ApiScope> GetScopes()
     {
         return new ApiScope[]
         {
-            new()
+            new ApiScope
             {
                 Name = "read",
                 DisplayName = "Read data",
                 Emphasize = false
             },
-            new()
+            new ApiScope
             {
                 Name = "write",
                 DisplayName = "Write data",
                 Emphasize = true
             },
-            new()
+            new ApiScope
             {
                 Name = "forbidden",
                 DisplayName = "Forbidden scope",
                 Emphasize = true
             }
-         };
+        };
     }
 
     public AuthorizeInteractionResponseGeneratorTests_Consent()
     {
         _subject = new IdentityServer4.ResponseHandling.AuthorizeInteractionResponseGenerator(
+            _options,
             new StubClock(),
             TestLogger.Create<IdentityServer4.ResponseHandling.AuthorizeInteractionResponseGenerator>(),
             _mockConsent,
@@ -112,7 +115,7 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
         (await act.Should().ThrowAsync<ArgumentNullException>())
             .And.ParamName.Should().Be("request");
     }
-    
+
     [Fact]
     public async Task ProcessConsentAsync_AllowsNullConsent()
     {
@@ -144,8 +147,8 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
 
         Func<Task> act = () => _subject.ProcessConsentAsync(request);
 
-        (await act.Should().ThrowAsync<ArgumentException>())
-            .And.Message.Should().Contain("PromptMode");
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*PromptMode*");
     }
 
     [Fact]
@@ -164,8 +167,8 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
 
         Func<Task> act = () => _subject.ProcessConsentAsync(request);
 
-        (await act.Should().ThrowAsync<ArgumentException>())
-            .And.Message.Should().Contain("PromptMode");
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*PromptMode*");
     }
 
 
@@ -189,7 +192,7 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
         result.Error.Should().Be(OidcConstants.AuthorizeErrors.ConsentRequired);
         AssertUpdateConsentNotCalled();
     }
-    
+
     [Fact]
     public async Task ProcessConsentAsync_PromptModeIsConsent_NoPriorConsent_ReturnsConsentResult()
     {
@@ -243,9 +246,8 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
         var consent = new ConsentResponse
         {
             RememberConsent = false,
-            ScopesValuesConsented = Array.Empty<string>()
+            ScopesValuesConsented = new string[] { }
         };
-
         var result = await _subject.ProcessConsentAsync(request, consent);
         request.WasConsentShown.Should().BeTrue();
         result.IsError.Should().BeTrue();
@@ -265,13 +267,11 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
             RequestedScopes = new List<string> { "openid", "read", "write" },
             ValidatedResources = GetValidatedResources("openid", "read", "write"),
         };
-
         var consent = new ConsentResponse
         {
             RememberConsent = false,
-            ScopesValuesConsented = Array.Empty<string>()
+            ScopesValuesConsented = new string[] { }
         };
-
         var result = await _subject.ProcessConsentAsync(request, consent);
         request.WasConsentShown.Should().BeTrue();
         result.IsError.Should().BeTrue();
@@ -283,7 +283,7 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
     public async Task ProcessConsentAsync_NoPromptMode_ConsentServiceRequiresConsent_ConsentGrantedButMissingRequiredScopes_ReturnsErrorResult()
     {
         RequiresConsent(true);
-        var client = new Client {};
+        var client = new Client { };
         var request = new ValidatedAuthorizeRequest()
         {
             ResponseMode = OidcConstants.ResponseModes.Fragment,
@@ -315,19 +315,18 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
             ResponseMode = OidcConstants.ResponseModes.Fragment,
             State = "12345",
             RedirectUri = "https://client.com/callback",
-            Client = new Client {
+            Client = new Client
+            {
                 AllowRememberConsent = false
             },
             RequestedScopes = new List<string> { "openid", "read", "write" },
             ValidatedResources = GetValidatedResources("openid", "read", "write"),
         };
-
         var consent = new ConsentResponse
         {
             RememberConsent = false,
             ScopesValuesConsented = new string[] { "openid", "read" }
         };
-
         var result = await _subject.ProcessConsentAsync(request, consent);
         request.ValidatedResources.Resources.IdentityResources.Count.Should().Be(1);
         request.ValidatedResources.Resources.ApiScopes.Count.Should().Be(1);
@@ -337,7 +336,7 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
         result.IsConsent.Should().BeFalse();
         AssertUpdateConsentNotCalled();
     }
-    
+
     [Fact]
     public async Task ProcessConsentAsync_PromptModeConsent_ConsentGranted_ScopesSelected_ReturnsConsentResult()
     {
@@ -347,7 +346,8 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
             ResponseMode = OidcConstants.ResponseModes.Fragment,
             State = "12345",
             RedirectUri = "https://client.com/callback",
-            Client = new Client {
+            Client = new Client
+            {
                 AllowRememberConsent = false
             },
             RequestedScopes = new List<string> { "openid", "read", "write" },
@@ -388,9 +388,9 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
             RememberConsent = true,
             ScopesValuesConsented = new string[] { "openid", "read" }
         };
-        
+
         await _subject.ProcessConsentAsync(request, consent);
-        
+
         AssertUpdateConsentCalled(client, user, "openid", "read");
     }
 
@@ -415,7 +415,7 @@ public class AuthorizeInteractionResponseGeneratorTests_Consent
             RememberConsent = false,
             ScopesValuesConsented = new string[] { "openid", "read" }
         };
-        
+
         await _subject.ProcessConsentAsync(request, consent);
 
         AssertUpdateConsentCalled(client, user);

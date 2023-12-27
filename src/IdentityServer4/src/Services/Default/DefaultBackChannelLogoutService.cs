@@ -28,11 +28,11 @@ public class DefaultBackChannelLogoutService : IBackChannelLogoutService
     /// The system clock;
     /// </summary>
     protected ISystemClock Clock { get; }
-    
+
     /// <summary>
-    /// The IdentityServerTools used to create and the JWT.
+    /// The IdentityServerTools used to create the JWT.
     /// </summary>
-    protected IdentityServerTools Tools { get; }
+    protected IIdentityServerTools Tools { get; }
 
     /// <summary>
     /// The ILogoutNotificationService to build the back channel logout requests.
@@ -50,18 +50,25 @@ public class DefaultBackChannelLogoutService : IBackChannelLogoutService
     protected ILogger<IBackChannelLogoutService> Logger { get; }
 
     /// <summary>
+    /// Ths issuer name service.
+    /// </summary>
+    protected IIssuerNameService IssuerNameService { get; }
+
+    /// <summary>
     /// Constructor.
     /// </summary>
     /// <param name="clock"></param>
     /// <param name="tools"></param>
     /// <param name="logoutNotificationService"></param>
     /// <param name="backChannelLogoutHttpClient"></param>
+    /// <param name="issuerNameService"></param>
     /// <param name="logger"></param>
     public DefaultBackChannelLogoutService(
         ISystemClock clock,
-        IdentityServerTools tools,
+        IIdentityServerTools tools,
         ILogoutNotificationService logoutNotificationService,
         IBackChannelLogoutHttpClient backChannelLogoutHttpClient,
+        IIssuerNameService issuerNameService,
         ILogger<IBackChannelLogoutService> logger)
     {
         Clock = clock;
@@ -69,6 +76,7 @@ public class DefaultBackChannelLogoutService : IBackChannelLogoutService
         LogoutNotificationService = logoutNotificationService;
         HttpClient = backChannelLogoutHttpClient;
         Logger = logger;
+        IssuerNameService = issuerNameService;
     }
 
     /// <inheritdoc/>
@@ -88,7 +96,7 @@ public class DefaultBackChannelLogoutService : IBackChannelLogoutService
     /// <returns></returns>
     protected virtual Task SendLogoutNotificationsAsync(IEnumerable<BackChannelLogoutRequest> requests)
     {
-        requests = requests ?? Enumerable.Empty<BackChannelLogoutRequest>();
+        requests ??= Enumerable.Empty<BackChannelLogoutRequest>();
         var tasks = requests.Select(SendLogoutNotificationAsync).ToArray();
         return Task.WhenAll(tasks);
     }
@@ -143,7 +151,13 @@ public class DefaultBackChannelLogoutService : IBackChannelLogoutService
             throw new InvalidOperationException("nonce claim is not allowed in the back-channel signout token.");
         }
 
-        return await Tools.IssueJwtAsync(DefaultLogoutTokenLifetime, claims);
+        if (request.Issuer != null)
+        {
+            return await Tools.IssueJwtAsync(DefaultLogoutTokenLifetime, request.Issuer, IdentityServerConstants.TokenTypes.LogoutToken, claims);
+        }
+
+        var issuer = await IssuerNameService.GetCurrentAsync();
+        return await Tools.IssueJwtAsync(DefaultLogoutTokenLifetime, issuer, IdentityServerConstants.TokenTypes.LogoutToken, claims);
     }
 
     /// <summary>
@@ -157,21 +171,40 @@ public class DefaultBackChannelLogoutService : IBackChannelLogoutService
         {
             throw new ArgumentException("Client requires SessionId", nameof(request.SessionId));
         }
+        if (request.SubjectId == null && request.SessionId == null)
+        {
+            throw new ArgumentException("Either a SubjectId or SessionId is required.");
+        }
 
-        var json = "{\"" + OidcConstants.Events.BackChannelLogout + "\":{} }";
+        var json = $"{{\"{OidcConstants.Events.BackChannelLogout}\":{{}} }}";
 
         var claims = new List<Claim>
         {
-            new Claim(JwtClaimTypes.Subject, request.SubjectId),
-            new Claim(JwtClaimTypes.Audience, request.ClientId),
-            new Claim(JwtClaimTypes.IssuedAt, Clock.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
-            new Claim(JwtClaimTypes.JwtId, CryptoRandom.CreateUniqueId(16, CryptoRandom.OutputFormat.Hex)),
-            new Claim(JwtClaimTypes.Events, json, IdentityServerConstants.ClaimValueTypes.Json)
+            new(JwtClaimTypes.Audience, request.ClientId),
+            new(JwtClaimTypes.JwtId, CryptoRandom.CreateUniqueId(16, CryptoRandom.OutputFormat.Hex)),
+            new(JwtClaimTypes.Events, json, IdentityServerConstants.ClaimValueTypes.Json)
         };
+
+        if (request.SubjectId != null)
+        {
+            claims.Add(new Claim(JwtClaimTypes.Subject, request.SubjectId));
+        }
 
         if (request.SessionId != null)
         {
             claims.Add(new Claim(JwtClaimTypes.SessionId, request.SessionId));
+        }
+
+        var reason = request.LogoutReason switch
+        {
+            LogoutNotificationReason.UserLogout => IdentityServerConstants.BackChannelLogoutReasons.UserLogout,
+            LogoutNotificationReason.SessionExpiration => IdentityServerConstants.BackChannelLogoutReasons.SessionExpiration,
+            LogoutNotificationReason.Terminated => IdentityServerConstants.BackChannelLogoutReasons.Terminated,
+            _ => null,
+        };
+        if (reason != null)
+        {
+            claims.Add(new Claim(IdentityServerConstants.ClaimTypes.BackChannelLogoutReason, reason));
         }
 
         return Task.FromResult(claims.AsEnumerable());

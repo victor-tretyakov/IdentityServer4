@@ -1,22 +1,21 @@
-﻿// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
+// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
 using IdentityServer4.Models;
 
-namespace IdentityServer4.Validation
+namespace IdentityServer4.Validation;
+
+/// <summary>
+/// Class describing the resource validation context
+/// </summary>
+public class ResourceValidationContext
 {
     /// <summary>
-    /// Class describing the resource validation context
+    /// Gets or sets the result.
     /// </summary>
-    public class ResourceValidationContext
-    {
-        /// <summary>
-        /// Gets or sets the result.
-        /// </summary>
-        /// <value>
-        /// The result.
-        /// </value>
-        public GrantValidationResult Result { get; set; } = new GrantValidationResult(TokenRequestErrors.InvalidGrant);
-    }
+    /// <value>
+    /// The result.
+    /// </value>
+    public GrantValidationResult Result { get; set; } = new GrantValidationResult(TokenRequestErrors.InvalidGrant);
 }

@@ -13,6 +13,7 @@ using IdentityServer4.Validation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace IdentityServer4.Endpoints;
@@ -27,6 +28,7 @@ internal class DeviceAuthorizationEndpoint : IEndpointHandler
     private readonly IDeviceAuthorizationRequestValidator _requestValidator;
     private readonly IDeviceAuthorizationResponseGenerator _responseGenerator;
     private readonly IEventService _events;
+    private readonly IServerUrls _urls;
     private readonly ILogger<DeviceAuthorizationEndpoint> _logger;
 
     public DeviceAuthorizationEndpoint(
@@ -34,12 +36,14 @@ internal class DeviceAuthorizationEndpoint : IEndpointHandler
         IDeviceAuthorizationRequestValidator requestValidator,
         IDeviceAuthorizationResponseGenerator responseGenerator,
         IEventService events,
+        IServerUrls urls,
         ILogger<DeviceAuthorizationEndpoint> logger)
     {
         _clientValidator = clientValidator;
         _requestValidator = requestValidator;
         _responseGenerator = responseGenerator;
         _events = events;
+        _urls = urls;
         _logger = logger;
     }
 
@@ -60,7 +64,15 @@ internal class DeviceAuthorizationEndpoint : IEndpointHandler
             return Error(OidcConstants.TokenErrors.InvalidRequest);
         }
 
-        return await ProcessDeviceAuthorizationRequestAsync(context);
+        try
+        {
+            return await ProcessDeviceAuthorizationRequestAsync(context);
+        }
+        catch (InvalidDataException ex)
+        {
+            _logger.LogWarning(ex, "Invalid HTTP request for device endpoint");
+            return Error(OidcConstants.TokenErrors.InvalidRequest);
+        }
     }
 
     private async Task<IEndpointResult> ProcessDeviceAuthorizationRequestAsync(HttpContext context)
@@ -69,7 +81,11 @@ internal class DeviceAuthorizationEndpoint : IEndpointHandler
 
         // validate client
         var clientResult = await _clientValidator.ValidateAsync(context);
-        if (clientResult.Client == null) return Error(OidcConstants.TokenErrors.InvalidClient);
+        if (clientResult.IsError)
+        {
+            var error = clientResult.Error ?? OidcConstants.TokenErrors.InvalidClient;
+            return Error(error);
+        }
 
         // validate request
         var form = (await context.Request.ReadFormAsync()).AsNameValueCollection();
@@ -81,11 +97,9 @@ internal class DeviceAuthorizationEndpoint : IEndpointHandler
             return Error(requestResult.Error, requestResult.ErrorDescription);
         }
 
-        var baseUrl = context.GetIdentityServerBaseUrl().EnsureTrailingSlash();
-
         // create response
         _logger.LogTrace("Calling into device authorize response generator: {type}", _responseGenerator.GetType().FullName);
-        var response = await _responseGenerator.ProcessAsync(requestResult, baseUrl);
+        var response = await _responseGenerator.ProcessAsync(requestResult, _urls.BaseUrl);
 
         await _events.RaiseAsync(new DeviceAuthorizationSuccessEvent(response, requestResult));
 

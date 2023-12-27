@@ -9,6 +9,7 @@ using IdentityServer4.Validation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System.Collections.Specialized;
+using System.IO;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -33,6 +34,20 @@ internal class EndSessionEndpoint : IEndpointHandler
     }
 
     public async Task<IEndpointResult> ProcessAsync(HttpContext context)
+    {
+        try
+        {
+            return await ProcessEndSessionAsync(context);
+        }
+        catch (InvalidDataException ex)
+        {
+            _logger.LogWarning(ex, "Invalid HTTP request for end session endpoint");
+            return new StatusCodeResult(HttpStatusCode.BadRequest);
+        }
+    }
+
+
+    async Task<IEndpointResult> ProcessEndSessionAsync(HttpContext context)
     {
         NameValueCollection parameters;
         if (HttpMethods.IsGet(context.Request.Method))

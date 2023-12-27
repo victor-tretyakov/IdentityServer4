@@ -2,6 +2,8 @@
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 
+#nullable enable
+
 using IdentityModel;
 using IdentityServer4.Extensions;
 using System;
@@ -24,12 +26,12 @@ internal class IdentityServerUser
     /// <summary>
     /// Display name (optional)
     /// </summary>
-    public string DisplayName { get; set; }
+    public string? DisplayName { get; set; }
 
     /// <summary>
     /// Identity provider (optional)
     /// </summary>
-    public string IdentityProvider { get; set; }
+    public string? IdentityProvider { get; set; }
 
     /// <summary>
     /// Authentication methods
@@ -65,16 +67,19 @@ internal class IdentityServerUser
     public ClaimsPrincipal CreatePrincipal()
     {
         if (SubjectId.IsMissing()) throw new ArgumentException("SubjectId is mandatory", nameof(SubjectId));
-        var claims = new List<Claim> { new Claim(JwtClaimTypes.Subject, SubjectId) };
+        var claims = new List<Claim>
+        {
+            new(JwtClaimTypes.Subject, SubjectId)
+        };
 
         if (DisplayName.IsPresent())
         {
-            claims.Add(new Claim(JwtClaimTypes.Name, DisplayName));
+            claims.Add(new Claim(JwtClaimTypes.Name, DisplayName!));
         }
 
         if (IdentityProvider.IsPresent())
         {
-            claims.Add(new Claim(JwtClaimTypes.IdentityProvider, IdentityProvider));
+            claims.Add(new Claim(JwtClaimTypes.IdentityProvider, IdentityProvider!));
         }
 
         if (AuthenticationTime.HasValue)

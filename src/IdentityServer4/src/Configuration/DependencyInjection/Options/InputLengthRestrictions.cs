@@ -125,4 +125,34 @@ public class InputLengthRestrictions
     /// Max length for the code verifier
     /// </summary>
     public int CodeVerifierMaxLength { get; } = 128;
+
+    /// <summary>
+    /// Max length for resource indicator parameter
+    /// </summary>
+    public int ResourceIndicatorMaxLength { get; } = 512;
+
+    /// <summary>
+    /// Max length for binding_message
+    /// </summary>
+    public int BindingMessage { get; set; } = Default;
+
+    /// <summary>
+    /// Max length for user_code
+    /// </summary>
+    public int UserCode { get; set; } = Default;
+
+    /// <summary>
+    /// Max length for id_token_hint
+    /// </summary>
+    public int IdTokenHint { get; set; } = 4000;
+
+    /// <summary>
+    /// Max length for login_hint_token
+    /// </summary>
+    public int LoginHintToken { get; set; } = 4000;
+
+    /// <summary>
+    /// Max length for auth_req_id
+    /// </summary>
+    public int AuthenticationRequestId { get; set; } = Default;
 }

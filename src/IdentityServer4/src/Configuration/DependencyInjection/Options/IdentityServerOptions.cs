@@ -1,7 +1,6 @@
-using IdentityServer4.Configuration;
 using IdentityServer4.Stores.Serialization;
 
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
+namespace IdentityServer4.Configuration;
 
 /// <summary>
 /// The IdentityServerOptions class is the top level container for all configuration settings of IdentityServer.
@@ -31,6 +30,14 @@ public class IdentityServerOptions
     public string AccessTokenJwtType { get; set; } = "at+jwt";
 
     /// <summary>
+    /// Gets or sets the value for the JWT typ header for logout tokens.
+    /// </summary>
+    /// <value>
+    /// The JWT typ value.
+    /// </value>
+    public string LogoutTokenJwtType { get; set; } = "logout+jwt";
+
+    /// <summary>
     /// Emits an aud claim with the format issuer/resources. That's needed for some older access token validation plumbing. Defaults to false.
     /// </summary>
     public bool EmitStaticAudienceClaim { get; set; } = false;
@@ -41,10 +48,25 @@ public class IdentityServerOptions
     public bool EmitScopesAsSpaceDelimitedStringInJwt { get; set; } = false;
 
     /// <summary>
+    /// Specifies whether authorize responses contain the iss parameter (https://www.rfc-editor.org/rfc/rfc9207.html)
+    /// </summary>
+    public bool EmitIssuerIdentificationResponseParameter { get; set; } = true;
+
+    /// <summary>
+    /// Specifies whether the s_hash claim gets emitted in identity tokens. Defaults to false.
+    /// </summary>
+    public bool EmitStateHash { get; set; } = false;
+
+    /// <summary>
     /// Specifies whether the JWT typ and content-type for JWT secured authorization requests is checked according to IETF spec.
     /// This might break older OIDC conformant request objects.
     /// </summary>
     public bool StrictJarValidation { get; set; } = false;
+
+    /// <summary>
+    /// Specifies if a user's tenant claim is compared to the tenant acr_values parameter value to determine if the login page is displayed. Defaults to false.
+    /// </summary>
+    public bool ValidateTenantOnAuthorization { get; set; } = false;
 
     /// <summary>
     /// Gets or sets the endpoint configuration.
@@ -126,6 +148,11 @@ public class IdentityServerOptions
     public DeviceFlowOptions DeviceFlow { get; set; } = new DeviceFlowOptions();
 
     /// <summary>
+    /// Gets or sets the CIBA options.
+    /// </summary>
+    public CibaOptions Ciba { get; set; } = new CibaOptions();
+
+    /// <summary>
     /// Gets or sets the logging options
     /// </summary>
     public LoggingOptions Logging { get; set; } = new LoggingOptions();
@@ -134,4 +161,34 @@ public class IdentityServerOptions
     /// Gets or sets the mutual TLS options.
     /// </summary>
     public MutualTlsOptions MutualTls { get; set; } = new MutualTlsOptions();
+
+    /// <summary>
+    /// Gets or sets the signing key management options.
+    /// </summary>
+    public KeyManagementOptions KeyManagement { get; set; } = new KeyManagementOptions();
+
+    /// <summary>
+    /// Options for persisted grants.
+    /// </summary>
+    public PersistentGrantOptions PersistentGrants { get; set; } = new PersistentGrantOptions();
+
+    /// <summary>
+    /// Gets or sets the license key.
+    /// </summary>
+    public string? LicenseKey { get; set; }
+
+    /// <summary>
+    /// Options for dynamic external providers.
+    /// </summary>
+    public DynamicProviderOptions DynamicProviders { get; set; } = new DynamicProviderOptions();
+
+    /// <summary>
+    /// Options for server-side sessions.
+    /// </summary>
+    public ServerSideSessionOptions ServerSideSessions { get; set; } = new ServerSideSessionOptions();
+
+    /// <summary>
+    /// Options for Pushed Authorization Requests (PAR).
+    /// </summary>
+    public PushedAuthorizationOptions PushedAuthorization { get; set; } = new PushedAuthorizationOptions();
 }

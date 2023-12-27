@@ -5,8 +5,10 @@
 using IdentityModel;
 using IdentityServer4;
 using IdentityServer4.AspNetIdentity;
+using IdentityServer4.Configuration;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using System;
 using System.Linq;
 
@@ -80,6 +82,8 @@ public static class IdentityServerBuilderExtensions
         builder.AddResourceOwnerValidator<ResourceOwnerPasswordValidator<TUser>>();
         builder.AddProfileService<ProfileService<TUser>>();
 
+        builder.Services.AddSingleton<IPostConfigureOptions<IdentityServerOptions>, UseAspNetIdentityCookieScheme>();
+
         return builder;
     }
 
@@ -93,14 +97,12 @@ public static class IdentityServerBuilderExtensions
 
     internal static void AddDecorator<TService>(this IServiceCollection services)
     {
-        var registration = services.LastOrDefault(x => x.ServiceType == typeof(TService));
-        if (registration == null)
-        {
-            throw new InvalidOperationException("Service type: " + typeof(TService).Name + " not registered.");
-        }
+        var registration = services.LastOrDefault(x => x.ServiceType == typeof(TService))
+            ?? throw new InvalidOperationException($"Service type: {typeof(TService).Name} not registered.");
+
         if (services.Any(x => x.ServiceType == typeof(Decorator<TService>)))
         {
-            throw new InvalidOperationException("Decorator already registered for type: " + typeof(TService).Name + ".");
+            throw new InvalidOperationException($"Decorator already registered for type: {typeof(TService).Name}.");
         }
 
         services.Remove(registration);
@@ -116,7 +118,7 @@ public static class IdentityServerBuilderExtensions
         {
             services.Add(new ServiceDescriptor(typeof(Decorator<TService>), provider =>
             {
-                return new DisposableDecorator<TService>((TService)registration.ImplementationFactory(provider));
+                return new DisposableDecorator<TService>((TService) registration.ImplementationFactory(provider));
             }, registration.Lifetime));
         }
         else if (registration.ImplementationType != null)
@@ -128,7 +130,7 @@ public static class IdentityServerBuilderExtensions
         }
         else
         {
-            throw new InvalidOperationException("Invalid registration in DI for: " + typeof(TService).Name);
+            throw new InvalidOperationException($"Invalid registration in DI for: {typeof(TService).Name}");
         }
     }
 }
