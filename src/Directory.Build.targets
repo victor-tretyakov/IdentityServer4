@@ -1,11 +1,11 @@
 <Project>
 
   <PropertyGroup>
-    <FrameworkVersion>7.0.14</FrameworkVersion>
+    <FrameworkVersion>8.0.3</FrameworkVersion>
     <ExtensionsVersion>8.0.0</ExtensionsVersion>
-    <EntityFrameworkVersion>7.0.14</EntityFrameworkVersion>
+    <EntityFrameworkVersion>8.0.3</EntityFrameworkVersion>
 
-    <IdentityServerVersion>4.2.2-*</IdentityServerVersion>
+    <IdentityServerVersion>5.0.0-*</IdentityServerVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,14 +18,14 @@
     <!--tests -->
     <PackageReference Update="FluentAssertions" Version="6.12.0" />
     <PackageReference Update="FluentAssertions.Web" Version="1.2.5"/>
-    <PackageReference Update="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-    <PackageReference Update="xunit" Version="2.6.3" />
-    <PackageReference Update="xunit.runner.visualstudio" Version="2.5.5" PrivateAssets="All" />
+    <PackageReference Update="Microsoft.NET.Test.Sdk" Version="17.9.0" />
+    <PackageReference Update="xunit" Version="2.7.0" />
+    <PackageReference Update="xunit.runner.visualstudio" Version="2.5.7" PrivateAssets="All" />
 
     <!--our stuff -->
     <PackageReference Update="IdentityModel" Version="6.2.0" />
     <PackageReference Update="Serilog" Version="3.1.1" />
-    <PackageReference Update="Serilog.AspNetCore" Version="8.0.0" />
+    <PackageReference Update="Serilog.AspNetCore" Version="8.0.1" />
     <PackageReference Update="Serilog.Sinks.Console" Version="5.0.1" />
     <PackageReference Update="Serilog.Sinks.File" Version="5.0.0" />
 
@@ -45,9 +45,9 @@
 
     <!--misc -->
     <PackageReference Update="System.Text.Json" Version="8.0.0" />
-    <PackageReference Update="Microsoft.IdentityModel.JsonWebTokens" Version="[7.0.3,)"/>
-    <PackageReference Update="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="7.0.3" />
-    <PackageReference Update="System.IdentityModel.Tokens.Jwt" Version="[7.0.3,)" />
+    <PackageReference Update="Microsoft.IdentityModel.JsonWebTokens" Version="[7.4.0,)"/>
+    <PackageReference Update="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="7.4.0" />
+    <PackageReference Update="System.IdentityModel.Tokens.Jwt" Version="[7.4.0,)" />
 
     <!--microsoft asp.net core -->
     <PackageReference Update="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="$(FrameworkVersion)" />
